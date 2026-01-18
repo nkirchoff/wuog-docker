@@ -34,6 +34,11 @@ def get_yt_client():
             logging.error(f"Failed to load YTMusic: {e}")
     return None
 
+TASKS = {
+    "backfill": {"status": "idle", "progress": 0, "message": ""},
+    "sync": {"status": "idle", "progress": 0, "message": ""}
+}
+
 @app.route('/')
 def index():
     # List CSV files
@@ -57,21 +62,42 @@ def download_file(filename):
 
 @app.route('/backfill', methods=['POST'])
 def backfill():
+    if TASKS["backfill"]["status"] == "running":
+        return jsonify({"success": False, "message": "Backfill already running"})
+
     try:
         pages = int(request.form.get('pages', 5))
+        TASKS["backfill"]["status"] = "running"
+        TASKS["backfill"]["message"] = "Starting..."
+        TASKS["backfill"]["progress"] = 0
+        
         def run_backfill():
-            for target in scraper.config['targets']:
-                scraper.process_target(target, max_pages=pages)
+            try:
+                # We can't easily track precise progress inside Scraper without refactoring it heavily
+                # So we fake it slightly or just show "Running"
+                TASKS["backfill"]["message"] = f"Scraping {pages} pages..."
+                for target in scraper.config['targets']:
+                    scraper.process_target(target, max_pages=pages)
+                TASKS["backfill"]["status"] = "complete"
+                TASKS["backfill"]["message"] = "Backfill complete!"
+            except Exception as e:
+                TASKS["backfill"]["status"] = "error"
+                TASKS["backfill"]["message"] = str(e)
+            
+            # Reset after a delay
+            time.sleep(10)
+            TASKS["backfill"]["status"] = "idle"
         
         threading.Thread(target=run_backfill).start()
-        return "Backfill started in background. Check logs or refresh page in a few minutes."
+        return jsonify({"success": True, "message": "Backfill started"})
     except Exception as e:
         return f"Error: {e}"
 
 @app.route('/api/status')
 def status():
     return jsonify({
-        "yt_configured": os.path.exists("headers_auth.json")
+        "yt_configured": os.path.exists("headers_auth.json"),
+        "tasks": TASKS
     })
 
 @app.route('/config/youtube', methods=['POST'])
@@ -95,48 +121,63 @@ def config_youtube():
 
 @app.route('/sync/youtube/<filename>', methods=['POST'])
 def sync_youtube(filename):
+    if TASKS["sync"]["status"] == "running":
+        return jsonify({"message": "A sync job is already running."}), 400
+
     yt = get_yt_client()
     if not yt:
         return jsonify({"message": "YouTube Music not configured! Configure it first."}), 400
 
     def run_sync():
+        TASKS["sync"]["status"] = "running"
+        TASKS["sync"]["progress"] = 0
+        TASKS["sync"]["message"] = f"Starting sync for {filename}"
+        
         filepath = os.path.join("data/automation", filename)
         playlist_name = filename.replace(".csv", "").replace("_", " ")
         
         logging.info(f"Starting YT Sync for {playlist_name}...")
         
-        # 1. Create or Find Playlist
-        # Note: Searching for own playlists via API is tricky, simpler to just create new for now 
-        # or list library. Let's create a new one to be safe.
         try:
             playlist_id = yt.create_playlist(title=f"WUOG: {playlist_name}", description="Synced from WUOG Scraper")
             logging.info(f"Created playlist {playlist_id}")
+            TASKS["sync"]["message"] = "Reading songs..."
             
             songs_to_add = []
             with open(filepath, 'r') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    query = f"{row['Artist']} {row['Song']}"
+                rows = list(csv.DictReader(f))
+                total_songs = len(rows)
+                
+                for i, row in enumerate(rows):
+                    TASKS["sync"]["progress"] = int((i / total_songs) * 100)
+                    TASKS["sync"]["message"] = f"Searching: {row['Song']}"
                     
+                    query = f"{row['Artist']} {row['Song']}"
                     # Search
-                    search_results = yt.search(query, filter="songs")
-                    if search_results:
-                        # Pick first result
-                        video_id = search_results[0]['videoId']
-                        songs_to_add.append(video_id)
-                    else:
-                        logging.warning(f"Could not find on YT Music: {query}")
-                        
-            # Add to playlist (batching?)
-            # ytmusicapi handles batching generally well, but let's be safe
+                    try:
+                        search_results = yt.search(query, filter="songs")
+                        if search_results:
+                            video_id = search_results[0]['videoId']
+                            songs_to_add.append(video_id)
+                    except Exception as e:
+                        logging.warning(f"Search failed for {query}: {e}")
+            
+            TASKS["sync"]["message"] = f"Adding {len(songs_to_add)} songs to playlist..."
             if songs_to_add:
                 yt.add_playlist_items(playlist_id, songs_to_add)
-                logging.info(f"Added {len(songs_to_add)} songs to playlist.")
+            
+            TASKS["sync"]["status"] = "complete"
+            TASKS["sync"]["message"] = "Sync Complete!"
         except Exception as e:
+            TASKS["sync"]["status"] = "error"
+            TASKS["sync"]["message"] = f"Failed: {str(e)}"
             logging.error(f"Sync failed: {e}")
+        
+        time.sleep(10)
+        TASKS["sync"]["status"] = "idle"
 
     threading.Thread(target=run_sync).start()
-    return jsonify({"message": f"Sync started for {filename}. It may take a while."})
+    return jsonify({"success": True, "message": f"Sync started for {filename}"})
 
 if __name__ == '__main__':
     # Ensure data dirs exist
