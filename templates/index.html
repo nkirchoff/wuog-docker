@@ -54,36 +54,46 @@
 
         <!-- Actions -->
         <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card">
+            <div class="col-md-4">
+                <div class="card h-100">
                     <div class="card-body">
                         <h5 class="card-title">Historical Data</h5>
-                        <p class="card-text">Scrape past playlists to fill gaps in the CSVs.</p>
+                        <p class="card-text small">Scrape past playlists to fill gaps.</p>
                         <form action="/backfill" method="post" class="d-flex gap-2 align-items-center">
                             <input type="number" name="pages" class="form-control" value="5" min="1" max="500"
-                                style="width: 100px;">
-                            <button type="submit" id="backfillBtn" class="btn btn-secondary">Backfill Pages</button>
-                            <small id="backfillStatusText" class="text-muted ms-2"></small>
+                                style="width: 80px;">
+                            <button type="submit" id="backfillBtn" class="btn btn-sm btn-secondary">Backfill</button>
+                            <small id="backfillStatusText" class="text-muted ms-1"></small>
                         </form>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6">
-                <!-- Sync Status Container -->
-                <div id="syncStatusDiv" style="display: none;" class="mb-3"></div>
-
-                <div class="card">
+            <div class="col-md-4">
+                <div class="card h-100">
                     <div class="card-body">
-                        <h5 class="card-title">YouTube Music Config</h5>
-                        <p class="card-text">Status: <span id="yt-status" class="badge bg-secondary">Unknown</span></p>
-                        <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal"
+                        <h5 class="card-title">Batch Actions</h5>
+                        <p class="card-text small">Sync all available CSVs to YouTube.</p>
+                        <button onclick="syncAll()" class="btn btn-uga w-100">Sync All Playlists</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title">YouTube Config</h5>
+                        <p class="card-text small">Status: <span id="yt-status"
+                                class="badge bg-secondary">Unknown</span></p>
+                        <button type="button" class="btn btn-sm btn-outline-dark w-100" data-bs-toggle="modal"
                             data-bs-target="#ytConfigModal">
-                            Configure Authentication
+                            Configure Auth
                         </button>
                     </div>
                 </div>
             </div>
         </div>
+
+        <!-- Sync Status -->
+        <div id="syncStatusDiv" style="display: none;" class="mb-3"></div>
 
         <!-- Playlists -->
         <div class="card">
@@ -236,6 +246,21 @@
                 .then(data => {
                     if (data.success) {
                         alert('Sync started!');
+                        updateStatus();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                });
+        }
+
+        function syncAll() {
+            if (!confirm('This will sequentially sync ALL playlists to YouTube Music. It may take a long time. Continue?')) return;
+
+            fetch('/sync/all', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Batch Sync started!');
                         updateStatus();
                     } else {
                         alert('Error: ' + data.message);

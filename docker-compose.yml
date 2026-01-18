@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   wuog-scraper:
-    # build: .  <-- Removed because we pull the image now
-    image: ghcr.io/nkirchoff/wuog-docker:latest
+    build: .
+    # image: ghcr.io/nkirchoff/wuog-docker:latest
     container_name: wuog_scraper
     restart: unless-stopped
     volumes:

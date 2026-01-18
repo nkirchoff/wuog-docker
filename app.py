@@ -83,43 +83,24 @@ TASKS = {
     "sync": {"status": "idle", "progress": 0, "message": ""}
 }
 
-def perform_sync(filename):
-    """Shared function to run the sync process."""
-    if TASKS["sync"]["status"] == "running":
-        logging.warning("Sync requested but already running. Skipping.")
-        return
-
-    yt = get_yt_client()
-    if not yt:
-        logging.error("Cannot sync: YouTube not configured.")
-        return
-
-    TASKS["sync"]["status"] = "running"
-    TASKS["sync"]["progress"] = 0
-    TASKS["sync"]["message"] = f"Starting sync for {filename}"
-        
+def _process_sync(yt, filename, set_status):
+    """
+    Core sync logic.
+    set_status: function(message, progress_percent)
+    """
     try:
         filepath = os.path.join("data/automation", filename)
         
-        # New Naming: WUOG Month Year
-        # Filename: Automation_January_2026.csv
-        # Remove extension
-        clean_name = filename.replace(".csv", "")
-        # Remove "Automation_" prefix if present
-        if clean_name.startswith("Automation_"):
-            clean_name = clean_name.replace("Automation_", "")
-        
-        # Replace remaining underscores with spaces: "January 2026"
-        clean_name = clean_name.replace("_", " ")
-        
+        # Naming: WUOG Month Year
+        clean_name = filename.replace(".csv", "").replace("Automation_", "").replace("_", " ")
         playlist_title = f"WUOG {clean_name}"
         
         logging.info(f"Starting YT Sync for {playlist_title}...")
         
-        # Check if playlist already exists
+        # Check/Create Playlist
         playlist_id = None
         try:
-            existing_playlists = yt.get_library_playlists(limit=50) # Check recent ones
+            existing_playlists = yt.get_library_playlists(limit=50)
             for p in existing_playlists:
                 if p['title'] == playlist_title:
                     playlist_id = p['playlistId']
@@ -132,7 +113,7 @@ def perform_sync(filename):
             playlist_id = yt.create_playlist(title=playlist_title, description="Synced from WUOG Scraper")
             logging.info(f"Created new playlist {playlist_id}")
         
-        TASKS["sync"]["message"] = "Reading songs..."
+        set_status("Reading songs...", 10)
         
         songs_to_add = []
         with open(filepath, 'r') as f:
@@ -140,11 +121,10 @@ def perform_sync(filename):
             total_songs = len(rows)
             
             for i, row in enumerate(rows):
-                TASKS["sync"]["progress"] = int((i / total_songs) * 100)
-                TASKS["sync"]["message"] = f"Searching: {row['Song']}"
+                progress = 10 + int((i / total_songs) * 80) # 10% to 90%
+                set_status(f"Searching: {row['Song']}", progress)
                 
                 query = f"{row['Artist']} {row['Song']}"
-                # Search
                 try:
                     search_results = yt.search(query, filter="songs")
                     if search_results:
@@ -153,19 +133,80 @@ def perform_sync(filename):
                 except Exception as e:
                     logging.warning(f"Search failed for {query}: {e}")
         
-        TASKS["sync"]["message"] = f"Adding {len(songs_to_add)} songs..."
+        set_status(f"Adding {len(songs_to_add)} songs...", 90)
         if songs_to_add:
             yt.add_playlist_items(playlist_id, songs_to_add)
-        
-        TASKS["sync"]["status"] = "complete"
-        TASKS["sync"]["message"] = "Sync Complete!"
+            
+        set_status("Complete!", 100)
+        return True, None
     except Exception as e:
-        TASKS["sync"]["status"] = "error"
+        err_msg = str(e)
         if "concatenate" in str(e) and "NoneType" in str(e):
-            TASKS["sync"]["message"] = "Invalid Auth: Cookie missing SAPISID. Please recopy headers."
-        else:
-            TASKS["sync"]["message"] = f"Failed: {str(e)}"
-        logging.error(f"Sync failed: {e}")
+             err_msg = "Invalid Auth: Cookie missing SAPISID. Please recopy headers."
+        logging.error(f"Sync failed for {filename}: {e}")
+        return False, err_msg
+
+def perform_sync(filename):
+    """Wrapper for single playlist sync."""
+    if TASKS["sync"]["status"] == "running":
+        return
+
+    yt = get_yt_client()
+    if not yt:
+        logging.error("Cannot sync: YouTube not configured.")
+        return
+
+    TASKS["sync"]["status"] = "running"
+    
+    def status_cb(msg, prog):
+        TASKS["sync"]["message"] = msg
+        TASKS["sync"]["progress"] = prog
+        
+    success, error = _process_sync(yt, filename, status_cb)
+    
+    if success:
+        TASKS["sync"]["status"] = "complete"
+    else:
+        TASKS["sync"]["status"] = "error"
+        TASKS["sync"]["message"] = error
+    
+    time.sleep(5)
+    TASKS["sync"]["status"] = "idle"
+
+def perform_sync_all():
+    """Wrapper for batch sync."""
+    if TASKS["sync"]["status"] == "running":
+        return
+
+    yt = get_yt_client()
+    if not yt:
+        return
+
+    TASKS["sync"]["status"] = "running"
+    TASKS["sync"]["message"] = "Starting Batch Sync..."
+    TASKS["sync"]["progress"] = 0
+    
+    data_dir = "data/automation"
+    if os.path.exists(data_dir):
+        files = sorted([f for f in os.listdir(data_dir) if f.endswith(".csv")], reverse=True)
+        total_files = len(files)
+        
+        for idx, filename in enumerate(files):
+            file_num = idx + 1
+            TASKS["sync"]["message"] = f"File {file_num}/{total_files}: {filename}"
+            
+            def status_cb(msg, prog):
+                # Scale inner progress to overall progress
+                # overall = ((file_idx / total) * 100) + (prog / total)
+                overall = int(((idx) / total_files * 100) + (prog / total_files))
+                TASKS["sync"]["progress"] = overall
+                TASKS["sync"]["message"] = f"[{file_num}/{total_files}] {filename}: {msg}"
+            
+            _process_sync(yt, filename, status_cb)
+            
+    TASKS["sync"]["status"] = "complete"
+    TASKS["sync"]["message"] = "Batch Sync Complete!"
+    TASKS["sync"]["progress"] = 100
     
     time.sleep(10)
     TASKS["sync"]["status"] = "idle"
@@ -306,6 +347,18 @@ def sync_youtube(filename):
 
     threading.Thread(target=perform_sync, args=(filename,)).start()
     return jsonify({"success": True, "message": f"Sync started for {filename}"})
+
+@app.route('/sync/all', methods=['POST'])
+def sync_all():
+    if TASKS["sync"]["status"] == "running":
+        return jsonify({"message": "A sync job is already running."}), 400
+        
+    yt = get_yt_client()
+    if not yt:
+        return jsonify({"message": "YouTube Music not configured!"}), 400
+        
+    threading.Thread(target=perform_sync_all).start()
+    return jsonify({"success": True, "message": "Batch Sync Started"})
 
 if __name__ == '__main__':
     # Ensure data dirs exist

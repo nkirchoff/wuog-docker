@@ -288,11 +288,28 @@ class Scraper:
             filename = f"{target['name'].replace(' ', '_')}_{bucket_key}.csv"
             filepath = os.path.join(folder, filename)
             
+            # Deduplicate: Keep only one instance of (Artist, Song) pair per month
+            # Since rows are ordered by timestamp DESC, this keeps the most recent play.
+            seen_songs = set()
+            unique_rows = []
+            
+            for row in bucket_rows:
+                # row = (artist, song, album, date_str, time_str)
+                artist = row[0].strip().lower()
+                song = row[1].strip().lower()
+                
+                # Create a unique key
+                key = (artist, song)
+                
+                if key not in seen_songs:
+                    seen_songs.add(key)
+                    unique_rows.append(row)
+            
             try:
                 with open(filepath, 'w', newline='', encoding='utf-8') as f:
                     writer = csv.writer(f)
                     writer.writerow(['Artist', 'Song', 'Album', 'Date_Played', 'Time_Played'])
-                    writer.writerows(bucket_rows)
+                    writer.writerows(unique_rows)
                 logging.info(f"Exported {len(bucket_rows)} songs to {filename}")
             except Exception as e:
                 logging.error(f"Error exporting CSV {filename}: {e}")
