@@ -37,13 +37,30 @@ Yes, this project is fully portable. Since this setup builds a custom Docker ima
 1. **Copy Files**: Transfer the whole `Wuog Docker` folder to your server (e.g., using SCP, FTP, or SMB).
    - Essential files: `scraper.py`, `requirements.txt`, `Dockerfile`, `config.yaml`, `docker-compose.yml`.
 2. **Run via Terminal (SSH)**:
-   Navigate to the folder on your server and run:
-   ```bash
-   docker-compose up -d --build
+## Deploying to OpenMediaVault (OMV) / Portainer
+Since the image is automatically built on GitHub, you **do not** need to copy code files anymore.
+
+1. **Copy the YAML**:
+   Paste the following into your Portainer stack or `docker-compose.yml`:
+   ```yaml
+   version: '3.8'
+   services:
+     wuog-scraper:
+       image: ghcr.io/nkirchoff/wuog-docker:latest
+       container_name: wuog_scraper
+       restart: unless-stopped
+       volumes:
+         - /path/to/data:/app/data
+         # Optional: Mount config if you want to customize it
+         # - /path/to/config.yaml:/app/config.yaml
+       ports:
+         - "1785:1785"
+       environment:
+         - TZ=America/New_York
    ```
-3. **Alternative (Portainer)**:
-   If you use Portainer on OMV, you still need the files on the disk to build the image.
-   - Using 'Stacks': You can paste the `docker-compose.yml` content into a Stack, **BUT** you must ensure the `build: .` context is correct (pointing to where you uploaded the files). Use the full path in `build` or just run via SSH for simplicity.
+
+2. **Run**:
+   Just click "Deploy" or "Up". The server will download the image automatically.
 
 ## Monitoring a Specific DJ
 To monitor a specific DJ, add them to `config.yaml`:
