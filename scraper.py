@@ -251,59 +251,54 @@ class Scraper:
         if export_mode == 'none':
             return
             
-        # Simplified export: Dump all data for this target to a single CSV for now
-        # The user asked for "month" or "semester". 
-        # For simplicity in V1, we create a master CSV for the target, and maybe rotate it by month filename.
-        
-        current_month = datetime.now().strftime("%B_%Y")
         folder = target['export_folder']
         os.makedirs(folder, exist_ok=True)
         
-        filename = f"{target['name'].replace(' ', '_')}_{current_month}.csv"
-        filepath = os.path.join(folder, filename)
-        
-        # Fetch all songs for this target
-        # TODO: In a more advanced version, we would filter SQL query by date parsing logic.
-        # For now, we dump everything we have for this target.
+        # Fetch all songs
         rows = self.db.get_songs_for_consolidation(target['name'])
         
-        try:
-            with open(filepath, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(['Artist', 'Song', 'Album', 'Date_Played', 'Time_Played'])
-                writer.writerows(rows)
-            logging.info(f"Exported data to {filepath}")
-        except Exception as e:
-            logging.error(f"Error exporting CSV: {e}")
-
-import http.server
-import socketserver
-import threading
-import argparse
-
-def start_file_server(port=1785):
-    """
-    Starts a simple HTTP server to serve files from the current directory (which includes data/).
-    """
-    class Handler(http.server.SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory="data", **kwargs)
-
-    try:
-        with socketserver.TCPServer(("", port), Handler) as httpd:
-            logging.info(f"Serving data/ directory on port {port}")
-            httpd.serve_forever()
-    except OSError as e:
-        logging.error(f"Could not start web server on port {port}: {e}")
+        # Bucket by Month_Year
+        # Date format example: "Jan 17th 2026"
+        buckets = {}
+        
+        for row in rows:
+            # row = (artist, song, album, date_str, time_str)
+            date_str = row[3]
+            try:
+                # Remove ordinal suffixes (st, nd, rd, th) to parse with strptime
+                # Simple hack: Remove 'st', 'nd', 'rd', 'th' if they follow a digit
+                # "Jan 17th 2026" -> "Jan 17 2026"
+                clean_date = date_str.replace("st ", " ").replace("nd ", " ").replace("rd ", " ").replace("th ", " ")
+                
+                dt = datetime.strptime(clean_date, "%b %d %Y")
+                bucket_key = dt.strftime("%B_%Y")
+            except ValueError:
+                # Fallback if date parsing fails
+                logging.warning(f"Failed to parse date: {date_str}. Using 'Unknown_Date'")
+                bucket_key = "Unknown_Date"
+            
+            if bucket_key not in buckets:
+                buckets[bucket_key] = []
+            buckets[bucket_key].append(row)
+            
+        # Write separate CSVs
+        for bucket_key, bucket_rows in buckets.items():
+            filename = f"{target['name'].replace(' ', '_')}_{bucket_key}.csv"
+            filepath = os.path.join(folder, filename)
+            
+            try:
+                with open(filepath, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(['Artist', 'Song', 'Album', 'Date_Played', 'Time_Played'])
+                    writer.writerows(bucket_rows)
+                logging.info(f"Exported {len(bucket_rows)} songs to {filename}")
+            except Exception as e:
+                logging.error(f"Error exporting CSV {filename}: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="WUOG Scraper")
     parser.add_argument("--once", action="store_true", help="Run once and exit")
     args = parser.parse_args()
-
-    # Start the file server in a background thread
-    server_thread = threading.Thread(target=start_file_server, args=(1785,), daemon=True)
-    server_thread.start()
 
     logging.info("Initializing WUOG Scraper...")
     scraper = Scraper()
