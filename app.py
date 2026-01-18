@@ -125,7 +125,16 @@ def config_youtube():
             headers_json = json.loads(raw_headers)
         except json.JSONDecodeError:
             return jsonify({"success": False, "error": "Invalid JSON format. Please paste the JSON object."})
-            
+
+        # Validate minimal headers
+        if 'Cookie' not in headers_json and 'cookie' not in headers_json:
+             return jsonify({"success": False, "error": "Missing 'Cookie' header. Please copy the full request headers."})
+        
+        # Check for SAPISID inside the cookie (Crucial for auth)
+        cookie_str = headers_json.get('Cookie', headers_json.get('cookie', ''))
+        if 'SAPISID' not in cookie_str and '__Secure-3PAPISID' not in cookie_str:
+             return jsonify({"success": False, "error": "Invalid Cookie: Missing SAPISID. Please recopy headers from YouTube Music."})
+
         # Optional: Test initialization immediately to give feedback
         try:
             # We do a trial init to see if it crashes
@@ -200,7 +209,10 @@ def sync_youtube(filename):
             TASKS["sync"]["message"] = "Sync Complete!"
         except Exception as e:
             TASKS["sync"]["status"] = "error"
-            TASKS["sync"]["message"] = f"Failed: {str(e)}"
+            if "concatenate" in str(e) and "NoneType" in str(e):
+                TASKS["sync"]["message"] = "Invalid Auth: Cookie missing SAPISID. Please recopy headers."
+            else:
+                TASKS["sync"]["message"] = f"Failed: {str(e)}"
             logging.error(f"Sync failed: {e}")
         
         time.sleep(10)
