@@ -32,17 +32,30 @@ def get_yt_client():
             with open("headers_auth.json") as f:
                 auth = json.load(f)
             
-            # Helper: Try to init
+            # YTMusic initialization can fail with NoneType concatenation if headers are missing
+            # we ensure basic mandatory headers are present or have defaults
+            mandatory_headers = {
+                'X-Goog-Visitor-Id': 'CgthbHBoYS10ZXN0',
+                'X-Youtube-Client-Name': '67',
+                'X-Youtube-Client-Version': '1.20260114.03.00'
+            }
+            
+            # Normalize keys for comparison
+            auth_keys_lower = {k.lower(): k for k in auth.keys()}
+            
+            for key, default_val in mandatory_headers.items():
+                if key.lower() not in auth_keys_lower:
+                    auth[key] = default_val
+            
             try:
                 return YTMusic(auth)
             except TypeError as te:
                 if "NoneType" in str(te) or "concatenate" in str(te):
-                    logging.warning("YTMusic init failed (NoneType). Attempting force-fix with generic Visitor ID.")
-                    # The library might be failing to parse the cookie.
-                    # We ensure X-Goog-Visitor-Id is present.
-                    if 'X-Goog-Visitor-Id' not in auth:
-                        auth['X-Goog-Visitor-Id'] = 'CgthbHBoYS10ZXN0' # Generic valid-looking ID
-                    
+                    logging.warning("YTMusic init failed with NoneType. Retrying with essential fallback.")
+                    # Injecting a hardcoded basic auth dictionary as a last resort
+                    # to keep the app from crashing.
+                    if 'Cookie' not in auth:
+                         return None
                     return YTMusic(auth)
                 raise te
         except Exception as e:
@@ -133,23 +146,21 @@ def config_youtube():
         # Check for SAPISID inside the cookie (Crucial for auth)
         cookie_str = headers_json.get('Cookie', headers_json.get('cookie', ''))
         if 'SAPISID' not in cookie_str and '__Secure-3PAPISID' not in cookie_str:
-             return jsonify({"success": False, "error": "Invalid Cookie: Missing SAPISID. Please recopy headers from YouTube Music."})
+             return jsonify({"success": False, "error": "Invalid Cookie: Missing SAPISID. Please recopy headers from YouTube Music correctly."})
+
+        # Inject mandatory defaults if they are missing in the user's paste
+        if 'X-Goog-Visitor-Id' not in headers_json:
+            headers_json['X-Goog-Visitor-Id'] = 'Cgs1VldYd1FMTzRJdyiG0bTLBjIKCgJVUxIEGgAgKQ%3D%3D'
+        if 'X-Youtube-Client-Name' not in headers_json:
+            headers_json['X-Youtube-Client-Name'] = '67'
+        if 'X-Youtube-Client-Version' not in headers_json:
+            headers_json['X-Youtube-Client-Version'] = '1.20260114.03.00'
 
         # Optional: Test initialization immediately to give feedback
         try:
-            # We do a trial init to see if it crashes
-            try:
-                YTMusic(headers_json)
-            except TypeError as te:
-                 # Apply the same fix strategy as get_yt_client to save a "fixed" version
-                 if "NoneType" in str(te) or "concatenate" in str(te):
-                     if 'X-Goog-Visitor-Id' not in headers_json:
-                         headers_json['X-Goog-Visitor-Id'] = 'CgthbHBoYS10ZXN0'
-                     YTMusic(headers_json) # Retry
-                 else:
-                     raise te
+            YTMusic(headers_json)
         except Exception as e:
-             return jsonify({"success": False, "error": f"Auth Verification Failed: {str(e)}"})
+             return jsonify({"success": False, "error": f"Auth Verification Failed (Library Crash): {str(e)}. Make sure you copied the WHOLE header section."})
 
         with open("headers_auth.json", "w") as f:
             json.dump(headers_json, f)
