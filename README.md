@@ -53,6 +53,7 @@ Since the image is automatically built on GitHub, you **do not** need to copy co
          - /path/to/data:/app/data
          # Optional: Mount config if you want to customize it
          # - /path/to/config.yaml:/app/config.yaml
+         - /path/to/headers_auth.json:/app/headers_auth.json # PERSIST AUTH
        ports:
          - "1785:1785"
        environment:

@@ -8,7 +8,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/app/data
-      - ./config.yaml:/app/config.yaml # Mount config so it can be edited without rebuild
+      - ./config.yaml:/app/config.yaml
+      - ./headers_auth.json:/app/headers_auth.json # Persist YouTube Auth
     ports:
       - "1785:1785" # Web server to view CSVs
     environment:
