@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WUOG Scraper Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .header { background-color: #ba0c2f; color: white; padding: 20px 0; margin-bottom: 30px; } /* UGA Red */
+        .header h1 { margin: 0; }
+        .btn-uga { background-color: #ba0c2f; color: white; border: none; }
+        .btn-uga:hover { background-color: #9e0a28; color: white; }
+    </style>
+</head>
+<body>
+
+<div class="header text-center">
+    <div class="container">
+        <h1>WUOG Scraper Dashboard</h1>
+        <p class="lead">Automation & Playlist Manager</p>
+    </div>
+</div>
+
+<div class="container">
+    
+    <!-- Actions -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Historical Data</h5>
+                    <p class="card-text">Scrape past playlists to fill gaps in the CSVs.</p>
+                    <form action="/backfill" method="post" class="d-flex gap-2">
+                        <input type="number" name="pages" class="form-control" value="5" min="1" max="50" style="width: 100px;">
+                        <button type="submit" class="btn btn-secondary">Backfill Pages</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">YouTube Music Config</h5>
+                    <p class="card-text">Status: <span id="yt-status" class="badge bg-secondary">Unknown</span></p>
+                    <button type="button" class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#ytConfigModal">
+                        Configure Authentication
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Playlists -->
+    <div class="card">
+        <div class="card-header">
+            Available Playlists (CSVs)
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Filename</th>
+                            <th>Size</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for file in files %}
+                        <tr>
+                            <td>{{ file.name }}</td>
+                            <td>{{ file.size }}</td>
+                            <td>
+                                <a href="/download/{{ file.name }}" class="btn btn-sm btn-primary">Download CSV</a>
+                                <button onclick="syncYoutube('{{ file.name }}')" class="btn btn-sm btn-uga">Sync to YouTube Music</button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center">No playlists found yet.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- YT Config Modal -->
+<div class="modal fade" id="ytConfigModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Configure YouTube Music</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><small>Paste the contents of your <code>headers_auth.json</code> or browser headers here. See <a href="https://ytmusicapi.readthedocs.io/en/latest/setup/browser.html" target="_blank">instructions</a>.</small></p>
+                <textarea id="ytHeaders" class="form-control" rows="10" placeholder='{"User-Agent": "...", "Cookie": "..."}'></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="saveYtConfig()">Save Configuration</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Simple status check
+    fetch('/api/status').then(r => r.json()).then(data => {
+        const badge = document.getElementById('yt-status');
+        if (data.yt_configured) {
+            badge.className = 'badge bg-success';
+            badge.innerText = 'Connected';
+        } else {
+            badge.className = 'badge bg-warning text-dark';
+            badge.innerText = 'Not Configured';
+        }
+    });
+
+    function saveYtConfig() {
+        const headers = document.getElementById('ytHeaders').value;
+        fetch('/config/youtube', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({headers: headers})
+        }).then(r => r.json()).then(data => {
+            if(data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        });
+    }
+
+    function syncYoutube(filename) {
+        if(!confirm('Start syncing ' + filename + ' to YouTube Music? This process runs in the background.')) return;
+        
+        fetch('/sync/youtube/' + filename, {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                alert(data.message);
+            });
+    }
+</script>
+
+</body>
+</html>

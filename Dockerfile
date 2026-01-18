@@ -19,4 +19,4 @@ ENV PYTHONUNBUFFERED=1
 # Expose the web server port
 EXPOSE 1785
 
-CMD ["python", "scraper.py"]
+CMD ["python", "app.py"]

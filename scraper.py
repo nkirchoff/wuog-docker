@@ -138,70 +138,90 @@ class Scraper:
             self.process_target(target)
         logging.info("Cycle complete.")
 
-    def process_target(self, target):
-        logging.info(f"Processing target: {target['name']}")
-        try:
-            response = requests.get(target['url'], headers=self.headers)
-            response.raise_for_status()
-            soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Find playlist items
-            # Spinitron structure: div.list-item
-            playlist_items = soup.find_all('div', {'class': 'list-item'})
-            
-            for item in playlist_items:
-                link_tag = item.find('a', {'class': 'link row'})
-                if not link_tag:
-                    continue
+    def process_target(self, target, max_pages=1):
+        logging.info(f"Processing target: {target['name']} (Pages: {max_pages})")
+        new_playlists_found = False
+        
+        for page_num in range(1, max_pages + 1):
+            if max_pages > 1:
+                logging.info(f"Scraping page {page_num}...")
                 
-                playlist_url = urljoin(target['url'], link_tag['href'])
-                
-                # Check if we already have this playlist
-                if self.db.playlist_exists(playlist_url):
-                    continue # Skip if processed
-                
-                # Parse metadata
-                dt_div = item.find('div', {'class': 'datetime playlist'})
-                date_str = ""
-                time_str = ""
-                if dt_div:
-                    # Robust extraction
-                    try:
-                        month = dt_div.find('span', {'class': 'month'}).text.strip()
-                        day = dt_div.find('span', {'class': 'day'}).text.strip()
-                        year = dt_div.find('span', {'class': 'year'}).text.strip()
-                        date_str = f"{month} {day} {year}"
-                        time_str = dt_div.find('span', {'class': 'time'}).text.strip()
-                    except AttributeError:
-                        logging.warning(f"Could not parse date/time for {playlist_url}")
+            page_url = target['url']
+            if page_num > 1:
+                page_url = f"{target['url']}?page={page_num}"
 
-                show_title = item.find('h3', {'class': 'show-title'}).text.strip() if item.find('h3', {'class': 'show-title'}) else "N/A"
-                dj_name = item.find('p', {'class': 'dj-name'}).text.strip() if item.find('p', {'class': 'dj-name'}) else "N/A"
+            try:
+                response = requests.get(page_url, headers=self.headers)
+                response.raise_for_status()
+                soup = BeautifulSoup(response.content, 'html.parser')
 
-                playlist_data = {
-                    'url': playlist_url,
-                    'target_name': target['name'],
-                    'show_title': show_title,
-                    'dj_name': dj_name,
-                    'date_str': date_str,
-                    'time_str': time_str
-                }
+                # Find playlist items
+                # Spinitron structure: div.list-item
+                playlist_items = soup.find_all('div', {'class': 'list-item'})
                 
-                # Scrape the songs for this playlist
-                songs = self.scrape_songs(playlist_url)
+                if not playlist_items:
+                    logging.info("No playlists found on this page. Stopping.")
+                    break
+
+                for item in playlist_items:
+                    link_tag = item.find('a', {'class': 'link row'})
+                    if not link_tag:
+                        continue
+                    
+                    playlist_url = urljoin(target['url'], link_tag['href'])
+                    
+                    # Check if we already have this playlist
+                    # Improvement: If backfilling, we might encounter existing ones. 
+                    # If we find one that exists, should we stop? 
+                    # For now, let's skip but continue the page loop in case of gaps.
+                    if self.db.playlist_exists(playlist_url):
+                        continue # Skip if processed
+                    
+                    new_playlists_found = True
+                    
+                    # Parse metadata
+                    dt_div = item.find('div', {'class': 'datetime playlist'})
+                    date_str = ""
+                    time_str = ""
+                    if dt_div:
+                        # Robust extraction
+                        try:
+                            month = dt_div.find('span', {'class': 'month'}).text.strip()
+                            day = dt_div.find('span', {'class': 'day'}).text.strip()
+                            year = dt_div.find('span', {'class': 'year'}).text.strip()
+                            date_str = f"{month} {day} {year}"
+                            time_str = dt_div.find('span', {'class': 'time'}).text.strip()
+                        except AttributeError:
+                            logging.warning(f"Could not parse date/time for {playlist_url}")
+
+                    show_title = item.find('h3', {'class': 'show-title'}).text.strip() if item.find('h3', {'class': 'show-title'}) else "N/A"
+                    dj_name = item.find('p', {'class': 'dj-name'}).text.strip() if item.find('p', {'class': 'dj-name'}) else "N/A"
+
+                    playlist_data = {
+                        'url': playlist_url,
+                        'target_name': target['name'],
+                        'show_title': show_title,
+                        'dj_name': dj_name,
+                        'date_str': date_str,
+                        'time_str': time_str
+                    }
+                    
+                    # Scrape the songs for this playlist
+                    songs = self.scrape_songs(playlist_url)
+                    
+                    # Save
+                    self.db.save_playlist(playlist_data)
+                    self.db.save_songs(playlist_url, songs)
+                    logging.info(f"Scraped {len(songs)} songs from {playlist_url}")
+
+                    time.sleep(1) # Be polite
+
+            except Exception as e:
+                logging.error(f"Error processing target {target['name']} page {page_num}: {e}")
                 
-                # Save
-                self.db.save_playlist(playlist_data)
-                self.db.save_songs(playlist_url, songs)
-                logging.info(f"Scraped {len(songs)} songs from {playlist_url}")
-
-                time.sleep(1) # Be polite
-
-            # After processing all new playlists for this target, run export/consolidation
+        # After processing all pages for this target
+        if new_playlists_found or max_pages > 1: # Always export if we did a backfill run
             self.export_data(target)
-
-        except Exception as e:
-            logging.error(f"Error processing target {target['name']}: {e}")
 
     def scrape_songs(self, playlist_url):
         songs = []
