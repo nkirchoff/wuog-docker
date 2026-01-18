@@ -49,6 +49,65 @@ def get_yt_client():
             logging.error(f"Failed to load YTMusic: {e}")
     return None
 
+TASKS = {
+    "backfill": {"status": "idle", "progress": 0, "message": ""},
+    "sync": {"status": "idle", "progress": 0, "message": ""}
+}
+
+@app.route('/')
+def index():
+    # List CSV files
+    data_dir = "data/automation" # TODO: Make dynamic based on targets
+    files = []
+    if os.path.exists(data_dir):
+        for f in os.listdir(data_dir):
+            if f.endswith(".csv"):
+                size = os.path.getsize(os.path.join(data_dir, f))
+                # Convert size to readable format
+                readable_size = f"{size / 1024:.1f} KB"
+                files.append({"name": f, "size": readable_size})
+    
+    # Sort by name (descending roughly gives newest months first)
+    files.sort(key=lambda x: x['name'], reverse=True)
+    return render_template('index.html', files=files)
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    return send_from_directory('data/automation', filename, as_attachment=True)
+
+@app.route('/backfill', methods=['POST'])
+def backfill():
+    if TASKS["backfill"]["status"] == "running":
+        return jsonify({"success": False, "message": "Backfill already running"})
+
+    try:
+        pages = int(request.form.get('pages', 5))
+        TASKS["backfill"]["status"] = "running"
+        TASKS["backfill"]["message"] = "Starting..."
+        TASKS["backfill"]["progress"] = 0
+        
+        def run_backfill():
+            try:
+                # We can't easily track precise progress inside Scraper without refactoring it heavily
+                # So we fake it slightly or just show "Running"
+                TASKS["backfill"]["message"] = f"Scraping {pages} pages..."
+                for target in scraper.config['targets']:
+                    scraper.process_target(target, max_pages=pages)
+                TASKS["backfill"]["status"] = "complete"
+                TASKS["backfill"]["message"] = "Backfill complete!"
+            except Exception as e:
+                TASKS["backfill"]["status"] = "error"
+                TASKS["backfill"]["message"] = str(e)
+            
+            # Reset after a delay
+            time.sleep(10)
+            TASKS["backfill"]["status"] = "idle"
+        
+        threading.Thread(target=run_backfill).start()
+        return jsonify({"success": True, "message": "Backfill started"})
+    except Exception as e:
+        return f"Error: {e}"
+
 @app.route('/api/status')
 def status():
     return jsonify({
