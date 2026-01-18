@@ -16,4 +16,7 @@ COPY . .
 # Run unbuffered to see logs in Docker
 ENV PYTHONUNBUFFERED=1
 
+# Expose the web server port
+EXPOSE 1785
+
 CMD ["python", "scraper.py"]

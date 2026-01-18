@@ -256,12 +256,34 @@ class Scraper:
         except Exception as e:
             logging.error(f"Error exporting CSV: {e}")
 
+import http.server
+import socketserver
+import threading
 import argparse
+
+def start_file_server(port=1785):
+    """
+    Starts a simple HTTP server to serve files from the current directory (which includes data/).
+    """
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory="data", **kwargs)
+
+    try:
+        with socketserver.TCPServer(("", port), Handler) as httpd:
+            logging.info(f"Serving data/ directory on port {port}")
+            httpd.serve_forever()
+    except OSError as e:
+        logging.error(f"Could not start web server on port {port}: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="WUOG Scraper")
     parser.add_argument("--once", action="store_true", help="Run once and exit")
     args = parser.parse_args()
+
+    # Start the file server in a background thread
+    server_thread = threading.Thread(target=start_file_server, args=(1785,), daemon=True)
+    server_thread.start()
 
     logging.info("Initializing WUOG Scraper...")
     scraper = Scraper()

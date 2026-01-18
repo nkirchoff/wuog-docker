@@ -9,5 +9,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./config.yaml:/app/config.yaml # Mount config so it can be edited without rebuild
+    ports:
+      - "1785:1785" # Web server to view CSVs
     environment:
       - TZ=America/New_York
