@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  wuog-scraper:
+    build: .
+    image: wuog-scraper:latest
+    container_name: wuog_scraper
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml # Mount config so it can be edited without rebuild
+    environment:
+      - TZ=America/New_York

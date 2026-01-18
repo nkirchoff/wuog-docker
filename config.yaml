@@ -1,0 +1,20 @@
+polling_interval_minutes: 60
+user_agent: "WUOG-Scraper-Bot/1.0"
+database_path: "data/wuog_data.db"
+
+targets:
+  - name: "Automation"
+    url: "https://spinitron.com/WUOG/dj/132321/Automation"
+    export_folder: "data/automation"
+    consolidation: "monthly" # Options: monthly, semester, none
+
+# Example of another target (commented out)
+#  - name: "Specific DJ"
+#    url: "https://spinitron.com/WUOG/dj/12345/Some-DJ"
+#    export_folder: "data/djs/some_dj"
+#    consolidation: "none"
+
+apple_music:
+  enabled: false
+  # developer_token: "YOUR_DEV_TOKEN"
+  # music_user_token: "YOUR_USER_TOKEN"
