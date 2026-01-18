@@ -1,88 +1,67 @@
-# WUOG Docker Scraper
+# WUOG Scraper & Playlist Manager V2
 
-A Dockerized Python application to scrape WUOG playlists from Spinitron, specifically targeting "Automation" (After Hours) or specific DJs. It consolidates songs into CSV files and runs 24/7.
+A comprehensive tool that scrapes WUOG playlists from Spinitron and syncs them to YouTube Music. Now featuring a web dashboard for easy management.
 
 ## Features
-- **Continuous Monitoring**: Runs on a schedule (default: every 60 minutes).
-- **Automation/After Hours Support**: Automatically scrapes the "Automation" DJ page.
-- **Data Consolidation**: Exports songs to CSV files (e.g., `data/automation/Automation_January_2026.csv`).
-- **Duplicate Prevention**: Uses a local SQLite database (`data/wuog_data.db`) to track scraped playlists and songs to avoid duplicates.
-- **Dockerized**: Easy to deploy and restart.
 
-## Prerequisites
-- Docker and Docker Compose
+### Core Scraping
+*   **Continuous Monitoring**: Runs 24/7 to scrape new plays.
+*   **Deduplication**: Smartly tracks Date/Time/Artist/Song to ensure your CSVs don't have duplicate entries for the same play.
+*   **Historical Backfill**: Scrape past months of data through the web UI.
 
-## Quick Start
-1. **Configure** (Optional):
-   Edit `config.yaml` to change targets or polling interval.
-   ```yaml
-   polling_interval_minutes: 60
-   targets:
-     - name: "Automation"
-       url: "https://spinitron.com/WUOG/dj/132321/Automation"
-       export_folder: "data/automation"
-   ```
+### YouTube Music Integration
+*   **One-Click Sync**: Push a CSV playlist to YouTube Music instantly.
+*   **Sync All**: Sequentially sync all monthly playlists with one button.
+*   **Weekly Auto-Sync**: Every **Sunday at 3:00 AM**, the system checks the current month's playlist and syncs new songs automatically.
+*   **Safe Re-syncing**: The system checks if songs are already in the playlist before adding them, so you don't get duplicates on YouTube.
 
-2. **Run**:
-   ```bash
-   docker-compose up -d --build
-   ```
+### Web Dashboard (Port 1785)
+*   Manage API Authentication.
+*   View status of background jobs (Sync, Backfill).
+*   Download CSV files directly.
 
-3. **Check Data**:
-   ```
+## Deployment (Docker)
 
-## Deploying to OpenMediaVault (OMV) or Remote Server
-Yes, this project is fully portable. Since this setup builds a custom Docker image, you need to copy the **entire project folder** (not just the YAML files) to your server.
+This project is built automatically to the GitHub Container Registry. You do not need to build it manually.
 
-1. **Copy Files**: Transfer the whole `Wuog Docker` folder to your server (e.g., using SCP, FTP, or SMB).
-   - Essential files: `scraper.py`, `requirements.txt`, `Dockerfile`, `config.yaml`, `docker-compose.yml`.
-2. **Run via Terminal (SSH)**:
-## Deploying to OpenMediaVault (OMV) / Portainer
-Since the image is automatically built on GitHub, you **do not** need to copy code files anymore.
+### docker-compose.yml
+Use this configuration on your server (OMV, Portainer, etc):
 
-1. **Copy the YAML**:
-   Paste the following into your Portainer stack or `docker-compose.yml`:
-   ```yaml
-   version: '3.8'
-   services:
-     wuog-scraper:
-       image: ghcr.io/nkirchoff/wuog-docker:latest
-       container_name: wuog_scraper
-       restart: unless-stopped
-       volumes:
-         - /path/to/data:/app/data
-         # Optional: Mount config if you want to customize it
-         # - /path/to/config.yaml:/app/config.yaml
-         - /path/to/headers_auth.json:/app/headers_auth.json # PERSIST AUTH
-       ports:
-         - "1785:1785"
-       environment:
-         - TZ=America/New_York
-   ```
-
-2. **Run**:
-   Just click "Deploy" or "Up". The server will download the image automatically.
-
-## Monitoring a Specific DJ
-To monitor a specific DJ, add them to `config.yaml`:
 ```yaml
-  - name: "DJ Name"
-    url: "https://spinitron.com/WUOG/dj/12345/DJ-Name"
-    export_folder: "data/djs/dj_name"
-    consolidation: "none" # or "monthly"
+services:
+  wuog-scraper:
+    image: ghcr.io/nkirchoff/wuog-docker:latest
+    container_name: wuog_scraper
+    restart: unless-stopped
+    ports:
+      - "1785:1785"
+    volumes:
+      - /path/to/data:/app/data
+      - /path/to/headers_auth.json:/app/headers_auth.json # Stores YT Cookies
+    environment:
+      - TZ=America/New_York
 ```
 
-## Apple Music Integration
-Automating playlist creation requires an active Apple Developer Program membership ($99/year). If you have one, you can extend the `scraper.py` with the necessary API calls using the `developer_token` and `music_user_token`.
-For now, the system creates standard CSVs that can be imported into Apple Music using third-party tools (like Soundiiz) or manual matching.
+### Setup Instructions
+1.  **Deploy** the stack.
+2.  **Open Dashboard**: Go to `http://<server-ip>:1785`.
+3.  **Configure YouTube**:
+    *   Click **Configure Auth**.
+    *   Paste your request JSON (containing `Cookie: ... SAPISID=...`) from `music.youtube.com`.
+    *   *Tip: Use Firefox Developer Tools -> Network Tab -> Filter "browse" -> Copy headers.*
 
-## Development / Manual Run
-To run locally without Docker:
-1. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Run once:
-   ```bash
-   python scraper.py --once
-   ```
+## Configuration (config.yaml)
+The system uses a default config, but you can override it by mounting `config.yaml`:
+
+```yaml
+polling_interval_minutes: 60
+targets:
+  - name: "Automation"
+    url: "https://spinitron.com/WUOG/dj/132321/Automation"
+    export_folder: "data/automation"
+    consolidation: "monthly"
+```
+
+## Security Note for Contributors
+*   No API keys are hardcoded.
+*   `headers_auth.json` is `.gitignore`d and persisted via volume.
