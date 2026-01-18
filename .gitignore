@@ -12,10 +12,11 @@ scraper.log
 *.db
 *.csv
 
+# Auth & Secrets
+headers_auth.json
+.env
+
 # System
 .DS_Store
 .idea/
 .vscode/
-
-# Environment variables (if you add them later)
-.env

@@ -150,7 +150,7 @@ def config_youtube():
 
         # Inject mandatory defaults if they are missing in the user's paste
         if 'X-Goog-Visitor-Id' not in headers_json:
-            headers_json['X-Goog-Visitor-Id'] = 'Cgs1VldYd1FMTzRJdyiG0bTLBjIKCgJVUxIEGgAgKQ%3D%3D'
+            headers_json['X-Goog-Visitor-Id'] = 'CgthbHBoYS10ZXN0' # Generic alpha-test ID
         if 'X-Youtube-Client-Name' not in headers_json:
             headers_json['X-Youtube-Client-Name'] = '67'
         if 'X-Youtube-Client-Version' not in headers_json:
