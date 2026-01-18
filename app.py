@@ -106,7 +106,7 @@ def backfill():
         threading.Thread(target=run_backfill).start()
         return jsonify({"success": True, "message": "Backfill started"})
     except Exception as e:
-        return f"Error: {e}"
+        return jsonify({"success": False, "message": str(e)})
 
 @app.route('/api/status')
 def status():
@@ -178,8 +178,23 @@ def sync_youtube(filename):
         logging.info(f"Starting YT Sync for {playlist_name}...")
         
         try:
-            playlist_id = yt.create_playlist(title=f"WUOG: {playlist_name}", description="Synced from WUOG Scraper")
-            logging.info(f"Created playlist {playlist_id}")
+            # Check if playlist already exists
+            playlist_name_full = f"WUOG: {playlist_name}"
+            playlist_id = None
+            try:
+                existing_playlists = yt.get_library_playlists(limit=50) # Check recent ones
+                for p in existing_playlists:
+                    if p['title'] == playlist_name_full:
+                        playlist_id = p['playlistId']
+                        logging.info(f"Reusing existing playlist {playlist_id}")
+                        break
+            except Exception as e:
+                logging.warning(f"Could not fetch existing playlists: {e}")
+
+            if not playlist_id:
+                playlist_id = yt.create_playlist(title=playlist_name_full, description="Synced from WUOG Scraper")
+                logging.info(f"Created new playlist {playlist_id}")
+            
             TASKS["sync"]["message"] = "Reading songs..."
             
             songs_to_add = []

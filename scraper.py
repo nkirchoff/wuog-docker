@@ -1,4 +1,5 @@
 import requests
+import re
 from bs4 import BeautifulSoup
 import csv
 import os
@@ -7,6 +8,7 @@ import yaml
 import time
 import schedule
 import logging
+import argparse
 from datetime import datetime
 from urllib.parse import urljoin
 
@@ -148,7 +150,8 @@ class Scraper:
                 
             page_url = target['url']
             if page_num > 1:
-                page_url = f"{target['url']}?page={page_num}"
+                separator = "&" if "?" in target['url'] else "?"
+                page_url = f"{target['url']}{separator}page={page_num}"
 
             try:
                 response = requests.get(page_url, headers=self.headers)
@@ -266,9 +269,8 @@ class Scraper:
             date_str = row[3]
             try:
                 # Remove ordinal suffixes (st, nd, rd, th) to parse with strptime
-                # Simple hack: Remove 'st', 'nd', 'rd', 'th' if they follow a digit
-                # "Jan 17th 2026" -> "Jan 17 2026"
-                clean_date = date_str.replace("st ", " ").replace("nd ", " ").replace("rd ", " ").replace("th ", " ")
+                # Use regex to remove suffixes following a digit
+                clean_date = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str)
                 
                 dt = datetime.strptime(clean_date, "%b %d %Y")
                 bucket_key = dt.strftime("%B_%Y")

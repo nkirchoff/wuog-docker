@@ -165,8 +165,6 @@
                 // Backfill
                 const backfillStatus = tasks.backfill;
                 const backfillBtn = document.getElementById('backfillBtn');
-                const backfillMsg = document.getElementById('backfillVideo'); // reusing or creating new element? 
-                // Let's create a dedicated element for status display
 
                 if (backfillStatus.status === 'running') {
                     backfillBtn.disabled = true;
