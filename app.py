@@ -112,7 +112,8 @@ def _process_sync(yt, filename, set_status):
     try:
         filepath = os.path.join("data/automation", filename)
         
-        # Naming: WUOG Month Year
+        # Naming: WUOG {Clean Name}
+        # e.g., Automation_Light_Side_Spring_2026.csv -> WUOG Light Side Spring 2026
         clean_name = filename.replace(".csv", "").replace("Automation_", "").replace("_", " ")
         playlist_title = f"WUOG {clean_name}"
         
