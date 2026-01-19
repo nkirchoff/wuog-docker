@@ -288,20 +288,31 @@ class Scraper:
                      # If parsing fails, fall back to "Dark_Side" or handle
                      variant = "Dark_Side"
 
+            # Bucket by Season AND Variant
+            # Spring: Jan - July
+            # Fall: Aug - Dec
+            
             try:
                 # Remove ordinal suffixes (st, nd, rd, th) to parse with strptime
                 clean_date = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str)
                 dt = datetime.strptime(clean_date, "%b %d %Y")
-                month_year = dt.strftime("%B_%Y")
+                
+                year = dt.year
+                if 1 <= dt.month <= 7:
+                    season = "Spring"
+                else:
+                    season = "Fall"
+                
+                season_year = f"{season}_{year}"
             except ValueError:
                 logging.warning(f"Failed to parse date: {date_str}. Using 'Unknown_Date'")
-                month_year = "Unknown_Date"
+                season_year = "Unknown_Date"
             
-            # Key for bucket: "Light_Side_January_2026"
+            # Key for bucket: "Light_Side_Spring_2026"
             if time_filter:
-                bucket_key = f"{variant}_{month_year}"
+                bucket_key = f"{variant}_{season_year}"
             else:
-                bucket_key = month_year
+                bucket_key = season_year
             
             if bucket_key not in buckets:
                 buckets[bucket_key] = []

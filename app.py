@@ -17,24 +17,29 @@ scraper = Scraper()
 
 # Background Scheduler Thread
 def run_weekly_sync():
-    """Finds the current month's CSVs (Light/Dark) and syncs them."""
+    """Finds the current season's CSVs (Light/Dark) and syncs them."""
     try:
         now = datetime.now()
-        current_month_str = now.strftime("%B_%Y") # e.g. January_2026
+        year = now.year
+        
+        # Determine Season
+        if 1 <= now.month <= 7:
+            season = "Spring"
+        else:
+            season = "Fall"
+            
+        current_season_str = f"{season}_{year}" # e.g. Spring_2026
         
         # Check for both variants
         variants = ["Light_Side", "Dark_Side"]
         files_to_sync = []
         
         for v in variants:
-            filename = f"Automation_{v}_{current_month_str}.csv"
+            # Format: Automation_Light_Side_Spring_2026.csv
+            filename = f"Automation_{v}_{current_season_str}.csv"
             filepath = os.path.join("data/automation", filename)
             if os.path.exists(filepath):
                 files_to_sync.append(filename)
-            else:
-                # Also check legacy/standard format just in case: Automation_January_2026.csv
-                 # (Though we likely overwrote it if we re-ran backfill, this is safe fallback logic)
-                 pass
         
         if files_to_sync:
             logging.info(f"Weekly Sync: Found {files_to_sync}. Starting sync.")
@@ -47,7 +52,7 @@ def run_weekly_sync():
 
             threading.Thread(target=sync_sequence).start()
         else:
-            logging.info(f"Weekly Sync: No files found for {current_month_str} yet.")
+            logging.info(f"Weekly Sync: No files found for {current_season_str} yet.")
     except Exception as e:
         logging.error(f"Weekly sync failed to trigger: {e}")
 
