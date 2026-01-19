@@ -17,22 +17,37 @@ scraper = Scraper()
 
 # Background Scheduler Thread
 def run_weekly_sync():
-    """Finds the current month's CSV and syncs it."""
+    """Finds the current month's CSVs (Light/Dark) and syncs them."""
     try:
         now = datetime.now()
-        # Filename format: Automation_Month_Year.csv
-        # We need to construct the current month's expected filename
         current_month_str = now.strftime("%B_%Y") # e.g. January_2026
-        filename = f"Automation_{current_month_str}.csv"
         
-        filepath = os.path.join("data/automation", filename)
-        if os.path.exists(filepath):
-            logging.info(f"Weekly Sync: Found {filename}. Starting sync.")
-            # We run this in a thread so it doesn't block the scheduler loop, 
-            # effectively behaving like the button press.
-            threading.Thread(target=perform_sync, args=(filename,)).start()
+        # Check for both variants
+        variants = ["Light_Side", "Dark_Side"]
+        files_to_sync = []
+        
+        for v in variants:
+            filename = f"Automation_{v}_{current_month_str}.csv"
+            filepath = os.path.join("data/automation", filename)
+            if os.path.exists(filepath):
+                files_to_sync.append(filename)
+            else:
+                # Also check legacy/standard format just in case: Automation_January_2026.csv
+                 # (Though we likely overwrote it if we re-ran backfill, this is safe fallback logic)
+                 pass
+        
+        if files_to_sync:
+            logging.info(f"Weekly Sync: Found {files_to_sync}. Starting sync.")
+            
+            # Helper to run them sequentially
+            def sync_sequence():
+                for f in files_to_sync:
+                    perform_sync(f)
+                    time.sleep(5) # Cooldown between playlists
+
+            threading.Thread(target=sync_sequence).start()
         else:
-            logging.info(f"Weekly Sync: {filename} not found yet. Skipping.")
+            logging.info(f"Weekly Sync: No files found for {current_month_str} yet.")
     except Exception as e:
         logging.error(f"Weekly sync failed to trigger: {e}")
 

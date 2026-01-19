@@ -263,7 +263,7 @@ class Scraper:
         # Fetch filter settings
         time_filter = target.get('time_filter') # e.g. {'start': 7, 'end': 22}
 
-        # Bucket by Month_Year
+        # Bucket by Month_Year AND Variant (Light/Dark Side)
         buckets = {}
         
         for row in rows:
@@ -271,31 +271,37 @@ class Scraper:
             date_str = row[3]
             time_str = row[4] # e.g. "2:30 PM"
             
+            variant = "Standard" # Default if no filter
+            
             # Apply Time Filter if configured
             if time_filter:
                 try:
                     # Parse time string "2:30 PM" -> 14.5 or just hour 14
-                    # Spinitron time example: "7:00 PM"
                     t = datetime.strptime(time_str, "%I:%M %p")
                     hour = t.hour
                     
-                    if not (time_filter['start'] <= hour < time_filter['end']):
-                        continue # Skip this song (Safe Harbor / Night time)
+                    if time_filter['start'] <= hour < time_filter['end']:
+                        variant = "Light_Side"
+                    else:
+                        variant = "Dark_Side"
                 except ValueError:
-                     # If parsing fails, leniently include it or log warning
-                     pass
+                     # If parsing fails, fall back to "Dark_Side" or handle
+                     variant = "Dark_Side"
 
             try:
                 # Remove ordinal suffixes (st, nd, rd, th) to parse with strptime
-                # Use regex to remove suffixes following a digit
                 clean_date = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str)
-                
                 dt = datetime.strptime(clean_date, "%b %d %Y")
-                bucket_key = dt.strftime("%B_%Y")
+                month_year = dt.strftime("%B_%Y")
             except ValueError:
-                # Fallback if date parsing fails
                 logging.warning(f"Failed to parse date: {date_str}. Using 'Unknown_Date'")
-                bucket_key = "Unknown_Date"
+                month_year = "Unknown_Date"
+            
+            # Key for bucket: "Light_Side_January_2026"
+            if time_filter:
+                bucket_key = f"{variant}_{month_year}"
+            else:
+                bucket_key = month_year
             
             if bucket_key not in buckets:
                 buckets[bucket_key] = []
