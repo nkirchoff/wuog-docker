@@ -60,6 +60,20 @@ targets:
     url: "https://spinitron.com/WUOG/dj/132321/Automation"
     export_folder: "data/automation"
     consolidation: "monthly"
+    time_filter: # Optional: Split into "Light Side" (Day) and "Dark Side" (Night)
+      start: 7   # 7 AM
+      end: 22    # 10 PM
+
+### Seasonal Filtering
+The scraper now groups songs by Season instead of just Month:
+*   **Spring**: January - July
+*   **Fall**: August - December
+
+Combined with `time_filter`, this produces 4 playlists per year:
+*   `WUOG Light Side Spring 2026`
+*   `WUOG Dark Side Spring 2026`
+*   `WUOG Light Side Fall 2026`
+*   `WUOG Dark Side Fall 2026`
 ```
 
 ## Security Note for Contributors
