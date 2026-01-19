@@ -37,7 +37,7 @@ services:
       - "1785:1785"
     volumes:
       - /path/to/data:/app/data
-      - /path/to/config.yaml:/app/config.yaml # Optional
+      # - /path/to/config.yaml:/app/config.yaml # Optional (Only needed if customizing)
     environment:
       - TZ=America/New_York
 ```
