@@ -36,7 +36,6 @@ services:
     ports:
       - "1785:1785"
     volumes:
-    volumes:
       - /path/to/data:/app/data
       - /path/to/config.yaml:/app/config.yaml # Optional
     environment:
