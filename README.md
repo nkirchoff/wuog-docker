@@ -36,8 +36,9 @@ services:
     ports:
       - "1785:1785"
     volumes:
+    volumes:
       - /path/to/data:/app/data
-      - /path/to/headers_auth.json:/app/headers_auth.json # Stores YT Cookies
+      - /path/to/config.yaml:/app/config.yaml # Optional
     environment:
       - TZ=America/New_York
 ```
