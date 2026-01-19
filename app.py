@@ -116,28 +116,51 @@ def _process_sync(yt, filename, set_status):
         set_status("Reading songs...", 10)
         
         songs_to_add = []
-        with open(filepath, 'r') as f:
+        video_ids_seen = set()
+        
+        # Ensure UTF-8 reading
+        with open(filepath, 'r', encoding='utf-8') as f:
             rows = list(csv.DictReader(f))
             total_songs = len(rows)
             
+            if total_songs == 0:
+                set_status("Error: CSV file is empty.", 100)
+                return False, "CSV file is empty"
+
+            hits = 0
             for i, row in enumerate(rows):
                 progress = 10 + int((i / total_songs) * 80) # 10% to 90%
-                set_status(f"Searching: {row['Song']}", progress)
+                set_status(f"Searching ({hits}/{i+1}): {row['Song']}", progress)
                 
                 query = f"{row['Artist']} {row['Song']}"
                 try:
                     search_results = yt.search(query, filter="songs")
                     if search_results:
                         video_id = search_results[0]['videoId']
-                        songs_to_add.append(video_id)
+                        # Double-check deduplication (avoid adding same video twice in one sync)
+                        if video_id not in video_ids_seen:
+                            songs_to_add.append(video_id)
+                            video_ids_seen.add(video_id)
+                            hits += 1
                 except Exception as e:
                     logging.warning(f"Search failed for {query}: {e}")
         
+        if not songs_to_add:
+            set_status("Failed: No songs found on YT Music.", 100)
+            return False, "No matches found on YouTube Music"
+
         set_status(f"Adding {len(songs_to_add)} songs...", 90)
-        if songs_to_add:
-            yt.add_playlist_items(playlist_id, songs_to_add)
+        
+        # Add in batches of 50 just in case (though library handles it, safer)
+        # ytmusicapi usually handles lists fine, but large lists can timeout
+        try:
+             yt.add_playlist_items(playlist_id, songs_to_add)
+        except Exception as e:
+             logging.error(f"Failed to add items: {e}")
+             set_status(f"Error adding to playlist: {str(e)}", 100)
+             return False, str(e)
             
-        set_status("Complete!", 100)
+        set_status(f"Complete! Added {len(songs_to_add)} songs.", 100)
         return True, None
     except Exception as e:
         err_msg = str(e)
