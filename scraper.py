@@ -288,31 +288,34 @@ class Scraper:
                      # If parsing fails, fall back to "Dark_Side" or handle
                      variant = "Dark_Side"
 
-            # Bucket by Season AND Variant
-            # Spring: Jan - July
-            # Fall: Aug - Dec
-            
+            # Determine Time Grouping (Monthly vs Seasonal)
             try:
-                # Remove ordinal suffixes (st, nd, rd, th) to parse with strptime
+                # Remove ordinal suffixes
                 clean_date = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str)
                 dt = datetime.strptime(clean_date, "%b %d %Y")
                 
-                year = dt.year
-                if 1 <= dt.month <= 7:
-                    season = "Spring"
+                if export_mode == 'seasonal':
+                    year = dt.year
+                    # Spring: Jan - July, Fall: Aug - Dec
+                    if 1 <= dt.month <= 7:
+                        season = "Spring"
+                    else:
+                        season = "Fall"
+                    time_group = f"{season}_{year}"
                 else:
-                    season = "Fall"
-                
-                season_year = f"{season}_{year}"
+                    # Default to monthly
+                    time_group = dt.strftime("%B_%Y")
+
             except ValueError:
                 logging.warning(f"Failed to parse date: {date_str}. Using 'Unknown_Date'")
-                season_year = "Unknown_Date"
+                time_group = "Unknown_Date"
             
-            # Key for bucket: "Light_Side_Spring_2026"
+            # Construct Bucket Key
+            # e.g. "Light_Side_Spring_2026" or "Automation_January_2026"
             if time_filter:
-                bucket_key = f"{variant}_{season_year}"
+                bucket_key = f"{variant}_{time_group}"
             else:
-                bucket_key = season_year
+                bucket_key = time_group
             
             if bucket_key not in buckets:
                 buckets[bucket_key] = []
