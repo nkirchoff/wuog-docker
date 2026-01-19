@@ -7,6 +7,9 @@ targets:
     url: "https://spinitron.com/WUOG/dj/132321/Automation"
     export_folder: "data/automation"
     consolidation: "monthly" # Options: monthly, semester, none
+    time_filter:
+      start: 7 # 7 AM
+      end: 22  # 10 PM
 
 # Example of another target (commented out)
 #  - name: "Specific DJ"

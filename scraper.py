@@ -260,13 +260,31 @@ class Scraper:
         # Fetch all songs
         rows = self.db.get_songs_for_consolidation(target['name'])
         
+        # Fetch filter settings
+        time_filter = target.get('time_filter') # e.g. {'start': 7, 'end': 22}
+
         # Bucket by Month_Year
-        # Date format example: "Jan 17th 2026"
         buckets = {}
         
         for row in rows:
             # row = (artist, song, album, date_str, time_str)
             date_str = row[3]
+            time_str = row[4] # e.g. "2:30 PM"
+            
+            # Apply Time Filter if configured
+            if time_filter:
+                try:
+                    # Parse time string "2:30 PM" -> 14.5 or just hour 14
+                    # Spinitron time example: "7:00 PM"
+                    t = datetime.strptime(time_str, "%I:%M %p")
+                    hour = t.hour
+                    
+                    if not (time_filter['start'] <= hour < time_filter['end']):
+                        continue # Skip this song (Safe Harbor / Night time)
+                except ValueError:
+                     # If parsing fails, leniently include it or log warning
+                     pass
+
             try:
                 # Remove ordinal suffixes (st, nd, rd, th) to parse with strptime
                 # Use regex to remove suffixes following a digit
