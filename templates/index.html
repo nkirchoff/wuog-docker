@@ -1,294 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WUOG Scraper Dashboard</title>
+    <title>WUOG Playlists</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body {
-            background-color: #f8f9fa;
-        }
-
-        .card {
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .header {
-            background-color: #ba0c2f;
-            color: white;
-            padding: 20px 0;
-            margin-bottom: 30px;
-        }
-
-        /* UGA Red */
-        .header h1 {
-            margin: 0;
-        }
-
-        .btn-uga {
-            background-color: #ba0c2f;
-            color: white;
-            border: none;
-        }
-
-        .btn-uga:hover {
-            background-color: #9e0a28;
-            color: white;
-        }
+        body { background-color: #f8f9fa; }
+        .header { background-color: #ba0c2f; color: white; padding: 20px 0; margin-bottom: 30px; }
+        .header h1 { margin: 0; }
+        .btn-uga { background-color: #ba0c2f; color: white; border: none; }
+        .btn-uga:hover { background-color: #9e0a28; color: white; }
+        .card { margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .state-open { background: #198754; } .state-frozen { background: #6c757d; }
+        .state-upcoming { background: #0d6efd; } .state-ended { background: #adb5bd; }
     </style>
 </head>
-
 <body>
-
-    <div class="header text-center">
-        <div class="container">
-            <h1>WUOG Scraper Dashboard</h1>
-            <p class="lead">Automation & Playlist Manager</p>
-        </div>
-    </div>
-
+<div class="header text-center">
     <div class="container">
-
-        <!-- Actions -->
-        <div class="row mb-4">
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">Historical Data</h5>
-                        <p class="card-text small">Scrape past playlists to fill gaps.</p>
-                        <form action="/backfill" method="post" class="d-flex gap-2 align-items-center">
-                            <input type="number" name="pages" class="form-control" value="5" min="1"
-                                style="width: 80px;">
-                            <button type="submit" id="backfillBtn" class="btn btn-sm btn-secondary">Backfill</button>
-                            <small id="backfillStatusText" class="text-muted ms-1"></small>
-                        </form>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">Batch Actions</h5>
-                        <p class="card-text small">Sync all available CSVs to YouTube.</p>
-                        <button onclick="syncAll()" class="btn btn-uga w-100">Sync All Playlists</button>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">YouTube Config</h5>
-                        <p class="card-text small">Status: <span id="yt-status"
-                                class="badge bg-secondary">Unknown</span></p>
-                        <button type="button" class="btn btn-sm btn-outline-dark w-100" data-bs-toggle="modal"
-                            data-bs-target="#ytConfigModal">
-                            Configure Auth
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Sync Status -->
-        <div id="syncStatusDiv" style="display: none;" class="mb-3"></div>
-
-        <!-- Playlists -->
-        <div class="card">
-            <div class="card-header">
-                Available Playlists (CSVs)
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
-                        <thead>
-                            <tr>
-                                <th>Filename</th>
-                                <th>Size</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for file in files %}
-                            <tr>
-                                <td>{{ file.name }}</td>
-                                <td>{{ file.size }}</td>
-                                <td>
-                                    <a href="/download/{{ file.name }}" class="btn btn-sm btn-primary">Download CSV</a>
-                                    <button onclick="syncYoutube('{{ file.name }}')" class="btn btn-sm btn-uga">Sync to
-                                        YouTube Music</button>
-                                </td>
-                            </tr>
-                            {% else %}
-                            <tr>
-                                <td colspan="3" class="text-center">No playlists found yet.</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+        <h1>WUOG Semester Playlists</h1>
+        <p class="lead mb-0">Spinitron &rarr; Apple Music, {{ today.strftime('%b %-d, %Y') }}</p>
     </div>
+</div>
 
-    <!-- YT Config Modal -->
-    <div class="modal fade" id="ytConfigModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Configure YouTube Music</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<div class="container">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card"><div class="card-body">
+                <h5 class="card-title">Jobs</h5>
+                {% for name, s in status.items() if name in ('collect', 'sync') %}
+                <p class="small mb-1"><strong>{{ name }}</strong>:
+                    {{ s.state or 'not run yet' }}{% if s.finished %} &middot; finished {{ s.finished }}{% endif %}
+                    {% if s.error %}<br><span class="text-danger">{{ s.error }}</span>{% endif %}
+                    {% if s.result and name == 'collect' %}<br><span class="text-muted">{{ s.result }}</span>{% endif %}
+                </p>
+                {% endfor %}
+                <div class="d-flex gap-2 mt-3">
+                    <form action="/collect" method="post"><button class="btn btn-sm btn-secondary">Collect now</button></form>
+                    <form action="/sync" method="post"><button class="btn btn-sm btn-uga" {% if not am_ready %}disabled{% endif %}>Sync to Apple Music now</button></form>
                 </div>
-                <div class="modal-body">
-                    <p><small>Paste the contents of your <code>headers_auth.json</code> or browser headers here. See <a
-                                href="https://ytmusicapi.readthedocs.io/en/latest/setup/browser.html"
-                                target="_blank">instructions</a>.</small></p>
-                    <textarea id="ytHeaders" class="form-control" rows="10"
-                        placeholder='{"User-Agent": "...", "Cookie": "..."}'></textarea>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" onclick="saveYtConfig()">Save Configuration</button>
-                </div>
-            </div>
+            </div></div>
         </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function updateStatus() {
-            fetch('/api/status').then(r => r.json()).then(data => {
-                // YT Auth Status
-                const badge = document.getElementById('yt-status');
-                if (data.yt_configured) {
-                    badge.className = 'badge bg-success';
-                    badge.innerText = 'Connected';
-                } else {
-                    badge.className = 'badge bg-warning text-dark';
-                    badge.innerText = 'Not Configured';
-                }
-
-                // Task Status
-                const tasks = data.tasks;
-
-                // Backfill
-                const backfillStatus = tasks.backfill;
-                const backfillBtn = document.getElementById('backfillBtn');
-
-                if (backfillStatus.status === 'running') {
-                    backfillBtn.disabled = true;
-                    backfillBtn.innerText = 'Running...';
-                    document.getElementById('backfillStatusText').innerText = backfillStatus.message;
-                } else if (backfillStatus.status === 'complete') {
-                    // Auto reload if it just finished and we haven't reloaded yet
-                    if (backfillBtn.disabled) {
-                        location.reload();
-                    }
-                    backfillBtn.disabled = false;
-                    backfillBtn.innerText = 'Backfill Pages';
-                    document.getElementById('backfillStatusText').innerText = "Ready";
-                } else {
-                    backfillBtn.disabled = false;
-                    backfillBtn.innerText = 'Backfill Pages';
-                    document.getElementById('backfillStatusText').innerText = backfillStatus.message || "Ready";
-                }
-
-                // Sync
-                const syncStatus = tasks.sync;
-                const syncStatusDiv = document.getElementById('syncStatusDiv');
-                if (syncStatus.status === 'running') {
-                    syncStatusDiv.style.display = 'block';
-                    syncStatusDiv.innerHTML = `
-                    <div class="alert alert-info">
-                        <strong>Syncing...</strong> ${syncStatus.message}
-                        <div class="progress mt-1">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${syncStatus.progress}%"></div>
+        <div class="col-md-6">
+            <div class="card"><div class="card-body">
+                <h5 class="card-title">Apple Music
+                    <span class="badge {{ 'bg-success' if am_ready else 'bg-warning text-dark' }}">{{ 'connected' if am_ready else 'not configured' }}</span></h5>
+                {% if status.auth %}<p class="small">{{ status.auth }}</p>{% endif %}
+                {% if auth.user_token_saved %}<p class="small text-muted mb-1">Tokens saved {{ auth.user_token_saved }}.</p>{% endif %}
+                {% if token_expires %}<p class="small mb-1 {{ 'text-danger' if (token_expires - today).days < 14 else 'text-muted' }}">Developer token expires {{ token_expires.strftime('%b %-d, %Y') }}.</p>{% endif %}
+                <form action="/applemusic" method="post" class="small mt-2">
+                    <label class="form-label">Paste token bundle</label>
+                    <textarea name="bundle" rows="2" class="form-control form-control-sm" placeholder='{"developer_token": "...", "user_token": "..."}'></textarea>
+                    <div class="form-text">Signed in at music.apple.com, open DevTools &rarr; Console and run:<br>
+                        <code>copy(JSON.stringify({developer_token: MusicKit.getInstance().developerToken, user_token: MusicKit.getInstance().musicUserToken}))</code></div>
+                    <button class="btn btn-sm btn-uga mt-2">Save &amp; test</button>
+                </form>
+                <form action="/applemusic" method="post" enctype="multipart/form-data" class="small mt-2">
+                    <details>
+                        <summary>Other ways to authenticate</summary>
+                        <label class="form-label mt-2">Developer token (JWT)</label>
+                        <input name="developer_token" class="form-control form-control-sm" placeholder="{{ 'saved' if auth.developer_token else '' }}">
+                        <p class="text-muted my-1">— or a MusicKit key —</p>
+                        <div class="d-flex gap-2">
+                            <input name="team_id" class="form-control form-control-sm" placeholder="Team ID {{ auth.team_id or '' }}">
+                            <input name="key_id" class="form-control form-control-sm" placeholder="Key ID {{ auth.key_id or '' }}">
                         </div>
-                    </div>
-                `;
-                } else if (syncStatus.status === 'complete') {
-                    syncStatusDiv.style.display = 'block';
-                    syncStatusDiv.innerHTML = `<div class="alert alert-success">Sync Complete!</div>`;
-                } else if (syncStatus.status === 'error') {
-                    syncStatusDiv.style.display = 'block';
-                    syncStatusDiv.innerHTML = `<div class="alert alert-danger">Error: ${syncStatus.message}</div>`;
-                } else {
-                    syncStatusDiv.style.display = 'none';
-                }
-            });
-        }
+                        <input type="file" name="p8" accept=".p8" class="form-control form-control-sm mt-1">
+                        <label class="form-label mt-2">Music User Token</label>
+                        <input name="user_token" class="form-control form-control-sm" placeholder="{{ 'saved' if auth.user_token else '' }}">
+                        <button class="btn btn-sm btn-secondary mt-2">Save &amp; test</button>
+                        <a href="/applemusic/authorize" class="btn btn-sm btn-outline-secondary mt-2">Sign in with Apple Music</a>
+                    </details>
+                </form>
+            </div></div>
+        </div>
+    </div>
 
-        // Poll every 2 seconds
-        setInterval(updateStatus, 2000);
-        updateStatus();
-
-        function saveYtConfig() {
-            const headers = document.getElementById('ytHeaders').value;
-            fetch('/config/youtube', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ headers: headers })
-            }).then(r => r.json()).then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            });
-        }
-
-        function syncYoutube(filename) {
-            if (!confirm('Start syncing ' + filename + ' to YouTube Music? This process runs in the background.')) return;
-
-            fetch('/sync/youtube/' + filename, { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Sync started!');
-                        updateStatus();
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                });
-        }
-
-        function syncAll() {
-            if (!confirm('This will sequentially sync ALL playlists to YouTube Music. It may take a long time. Continue?')) return;
-
-            fetch('/sync/all', { method: 'POST' })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Batch Sync started!');
-                        updateStatus();
-                    } else {
-                        alert('Error: ' + data.message);
-                    }
-                });
-        }
-
-        // Wire up backfill form to use AJAX instead of normal submit to avoid page reload until done
-        document.querySelector('form[action="/backfill"]').onsubmit = async (e) => {
-            e.preventDefault();
-            const pages = e.target.elements.pages.value;
-            const btn = document.getElementById('backfillBtn');
-            btn.disabled = true;
-            btn.innerText = "Starting...";
-
-            const formData = new FormData();
-            formData.append('pages', pages);
-
-            const res = await fetch('/backfill', { method: 'POST', body: formData });
-            const data = await res.json();
-            if (!data.success) {
-                alert(data.message);
-                btn.disabled = false;
-                btn.innerText = "Backfill Pages";
-            }
-        };
-    </script>
-
+    <div class="card"><div class="card-body">
+        <h5 class="card-title">Semesters</h5>
+        <table class="table table-sm align-middle">
+            <thead><tr><th>Semester</th><th>Dates</th><th>Spins</th><th>Status</th><th>Apple Music playlists</th></tr></thead>
+            <tbody>
+            {% for r in semesters %}
+            <tr>
+                <td><strong>{{ r.sem.name }}</strong></td>
+                <td class="small">{{ r.sem.start.strftime('%b %-d') }} – {{ r.sem.end.strftime('%b %-d, %Y') }}</td>
+                <td>{{ '{:,}'.format(r.spins) }}</td>
+                <td><span class="badge state-{{ r.state }}">{{ r.state }}</span>
+                    {% if r.state == 'open' %}<div class="small text-muted">freezes {{ r.freezes.strftime('%b %-d') }}</div>{% endif %}</td>
+                <td class="small">
+                    {% for p in r.playlists %}{{ p.name }} <span class="text-muted">({{ p.n }})</span><br>{% endfor %}
+                    {% for v in views %}<a href="/csv/{{ r.sem.name }}/{{ v.key }}" class="me-2">{{ v.key }}.csv</a>{% endfor %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div></div>
+</div>
 </body>
-
 </html>

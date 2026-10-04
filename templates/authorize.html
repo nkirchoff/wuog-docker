@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple Music sign-in</title>
+    <script src="https://js-cdn.music.apple.com/musickit/v3/musickit.js" data-web-components async></script>
+    <style>body { font-family: -apple-system, sans-serif; max-width: 520px; margin: 60px auto; padding: 0 16px; }</style>
+</head>
+<body>
+<h2>Connect Apple Music</h2>
+{% if not developer_token %}
+<p>Save a developer token (or MusicKit key) on the dashboard first.</p>
+{% else %}
+<p>Signs in with MusicKit and saves a Music User Token to this server. MusicKit needs a secure
+    context, so open this page as <code>http://localhost:1785</code> (e.g. through an SSH tunnel), not the LAN IP.</p>
+<button id="go">Sign in</button>
+<p id="out"></p>
+<script>
+    document.addEventListener('musickitloaded', async () => {
+        await MusicKit.configure({ developerToken: {{ developer_token | tojson }}, app: { name: 'WUOG Playlists', build: '3.0' } });
+        document.getElementById('go').onclick = async () => {
+            const token = await MusicKit.getInstance().authorize();
+            await fetch('/applemusic/user-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
+            document.getElementById('out').textContent = 'Saved. You can close this tab.';
+        };
+    });
+</script>
+{% endif %}
+</body>
+</html>

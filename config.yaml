@@ -1,23 +1,35 @@
-polling_interval_minutes: 60
-user_agent: "WUOG-Scraper-Bot/1.0"
-database_path: "data/wuog_data.db"
+station: WUOG
+timezone: America/New_York
+database_path: data/wuog.db
 
-targets:
-  - name: "Automation"
-    url: "https://spinitron.com/WUOG/dj/132321/Automation"
-    export_folder: "data/automation"
-    consolidation: "seasonal" # Options: seasonal, monthly, none
-    time_filter:
-      start: 7 # 7 AM
-      end: 22  # 10 PM
+# Spinitron's robots.txt asks for >= 10 s between requests. Don't lower this.
+request_interval_s: 10
+collect_every_minutes: 60
+sync_at: "05:00"            # daily Apple Music sync, local time
 
-# Example of another target (commented out)
-#  - name: "Specific DJ"
-#    url: "https://spinitron.com/WUOG/dj/12345/Some-DJ"
-#    export_folder: "data/djs/some_dj"
-#    consolidation: "none"
+# Apple Music playlists stay open this many days after a semester's last day so
+# late-logged shows still land, then they freeze and are never touched again.
+freeze_grace_days: 3
+# Semesters that started before this date are left alone (already archived).
+sync_from: 2026-08-17
+max_tracks_per_playlist: 5000
+storefront: us
 
-apple_music:
-  enabled: false
-  # developer_token: "YOUR_DEV_TOKEN"
-  # music_user_token: "YOUR_USER_TOKEN"
+# UGA registrar dates: classes begin -> final exams end. Years not listed fall
+# back to Spring Jan 8–May 8 / Fall Aug 15–Dec 12.
+include_summer: false
+semesters:
+  - {name: Fall 2026,   start: 2026-08-17, end: 2026-12-09}
+  - {name: Spring 2027, start: 2027-01-11, end: 2027-05-04}
+
+# One Apple Music playlist per view per semester. Filters combine with AND:
+#   categories: Rotation, Specialty Show, Talk, Sport, News, Live Music, unset, Automation
+#   hours:      hour of day the song aired (0-23)     weekdays: 0=Mon ... 6=Sun
+#   local_only: Spinitron's "L" local-artist flag     min_spins: spun at least N times that semester
+#   shows:      list of Spinitron show titles
+# {semester}, {start}, {end} are filled in. Names/descriptions can't be edited
+# through the API after creation, so get them right before the first sync.
+views:
+  - key: all
+    name: "WUOG {semester}"
+    description: "Every song logged on WUOG 90.5FM Athens, GA, {start} – {end}, in the order it first aired. Grows daily until the semester ends."

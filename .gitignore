@@ -11,6 +11,7 @@ data/
 scraper.log
 *.db
 *.csv
+*.p8
 
 # Auth & Secrets
 headers_auth.json

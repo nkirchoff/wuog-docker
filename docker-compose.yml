@@ -1,15 +1,13 @@
-version: '3.8'
-
 services:
   wuog-scraper:
     build: .
     # image: ghcr.io/nkirchoff/wuog-docker:latest
     container_name: wuog_scraper
     restart: unless-stopped
+    ports:
+      - "1785:1785"
     volumes:
       - ./data:/app/data
-      - ./config.yaml:/app/config.yaml
-    ports:
-      - "1785:1785" # Web server to view CSVs
+      # - ./config.yaml:/app/config.yaml   # only if customizing views/semesters
     environment:
       - TZ=America/New_York
