@@ -29,7 +29,7 @@ AUTH_PATH = "data/applemusic.json"
 with open(CONFIG_PATH) as f:
     CFG = yaml.safe_load(f)
 TZ = ZoneInfo(CFG.get("timezone", "America/New_York"))
-CAL = Calendar(CFG.get("semesters"), CFG.get("include_summer", False))
+CAL = Calendar(CFG.get("semesters"), CFG.get("include_breaks", False))
 LOCK = threading.Lock()          # one collect/sync at a time; SQLite + Spinitron politeness
 STATUS = {"collect": {}, "sync": {}}
 

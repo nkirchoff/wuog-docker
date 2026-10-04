@@ -17,7 +17,9 @@ storefront: us
 
 # UGA registrar dates: classes begin -> final exams end. Years not listed fall
 # back to Spring Jan 8–May 8 / Fall Aug 15–Dec 12.
-include_summer: false
+# Breaks (Summer, Winter Break) fill the gaps between semesters and only get
+# the views marked `breaks: true`.
+include_breaks: true
 semesters:
   - {name: Fall 2026,   start: 2026-08-17, end: 2026-12-09}
   - {name: Spring 2027, start: 2027-01-11, end: 2027-05-04}
@@ -31,5 +33,6 @@ semesters:
 # through the API after creation, so get them right before the first sync.
 views:
   - key: all
+    breaks: true
     name: "WUOG {semester}"
-    description: "Every song logged on WUOG 90.5FM Athens, GA, {start} – {end}, in the order it first aired. Grows daily until the semester ends."
+    description: "Every song logged on WUOG 90.5FM Athens, GA, {start} – {end}, in the order it first aired. Grows daily until {end}, then stops."

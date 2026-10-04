@@ -158,5 +158,6 @@ def run_sync(db, am, calendar, cfg, today=None):
         past_due = today > sem.freezes_on(grace)
         if past_due and not db.execute("SELECT 1 FROM am_playlists WHERE semester=?", (sem.name,)).fetchone():
             continue  # never synced and long over: leave it alone
-        results[sem.name] = sync_semester(db, am, sem, cfg["views"], cfg, frozen_after=past_due)
+        views = [v for v in cfg["views"] if v.get("breaks")] if sem.is_break else cfg["views"]
+        results[sem.name] = sync_semester(db, am, sem, views, cfg, frozen_after=past_due)
     return results
