@@ -12,7 +12,7 @@ sync_at: "05:00"            # daily Apple Music sync, local time
 freeze_grace_days: 3
 # Semesters that started before this date are left alone (already archived).
 sync_from: 2026-08-17
-max_tracks_per_playlist: 5000
+max_tracks_per_playlist: 10000
 storefront: us
 
 # UGA registrar dates: classes begin -> final exams end. Years not listed fall
@@ -28,7 +28,7 @@ semesters:
 #   categories: Rotation, Specialty Show, Talk, Sport, News, Live Music, unset, Automation
 #   hours:      hour of day the song aired (0-23)     weekdays: 0=Mon ... 6=Sun
 #   local_only: Spinitron's "L" local-artist flag     min_spins: spun at least N times that semester
-#   shows:      list of Spinitron show titles
+#   shows:      list of Spinitron show titles         min_shows: aired on at least N different shows
 # {semester}, {start}, {end} are filled in. Names/descriptions can't be edited
 # through the API after creation, so get them right before the first sync.
 views:
@@ -36,3 +36,18 @@ views:
     breaks: true
     name: "WUOG {semester}"
     description: "Every song logged on WUOG 90.5FM Athens, GA, {start} – {end}, in the order it first aired. Grows daily until {end}, then stops."
+
+  - key: heavy
+    name: "WUOG {semester} · Heavy Rotation"
+    description: "Songs that aired on at least 3 different WUOG shows during {semester}: the station's sound this semester, added as each song crosses 3 shows."
+    min_shows: 3
+
+  - key: specialty
+    name: "WUOG {semester} · Specialty Shows"
+    description: "Everything from WUOG's specialty shows ({start} – {end}): soul, twee, hardcore, shoegaze, country, K-pop, Brazilian, hyperpop and more."
+    categories: ["Specialty Show"]
+
+  - key: local
+    name: "WUOG {semester} · Local"
+    description: "Artists WUOG flags as local, spun on 90.5FM Athens, GA during {semester}."
+    local_only: true

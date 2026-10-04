@@ -39,7 +39,7 @@ def view_tracks(db, semester, view):
     hours = set(view.get("hours") or [])
     weekdays = set(view.get("weekdays") or [])
     shows = {t.lower() for t in view.get("shows") or []}
-    counts, first = {}, OrderedDict()
+    counts, shows_of, first = {}, {}, OrderedDict()
     for row in db.execute(q, (semester.start.isoformat(), semester.end.isoformat())):
         ts, isrc, artist, song, local, category, title = row
         if not artist or not song or NOT_MUSIC.match(artist):
@@ -57,9 +57,12 @@ def view_tracks(db, semester, view):
             continue
         k = track_key(isrc, artist, song)
         counts[k] = counts.get(k, 0) + 1
+        if category != "Automation":   # every automation hour is its own playlist
+            shows_of.setdefault(k, set()).add((title or "").lower())
         first.setdefault(k, (isrc, artist, song))
-    min_spins = view.get("min_spins", 1)
-    return OrderedDict((k, v) for k, v in first.items() if counts[k] >= min_spins)
+    min_spins, min_shows = view.get("min_spins", 1), view.get("min_shows", 0)
+    return OrderedDict((k, v) for k, v in first.items()
+                       if counts[k] >= min_spins and len(shows_of.get(k, ())) >= min_shows)
 
 
 def match_tracks(db, am, tracks, retry_days=30):
