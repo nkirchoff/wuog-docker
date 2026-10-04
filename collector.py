@@ -48,6 +48,11 @@ def connect(path):
     db = sqlite3.connect(path)
     db.row_factory = sqlite3.Row
     db.executescript(SCHEMA)
+    # Rows stored before automation got its own category (see is_automation).
+    db.execute("""UPDATE playlists SET category='Automation' WHERE coalesce(category,'') != 'Automation'
+                  AND (upper(trim(title))='AUTOMATION' OR title LIKE 'WUOG 90.5FM%'
+                       OR trim(dj) IN ('Automation','DJ Automatic DJ','Automatic DJ'))""")
+    db.commit()
     return db
 
 

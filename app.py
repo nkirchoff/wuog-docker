@@ -115,7 +115,10 @@ def collect(since=None):
             open_ = CAL.open_semesters(today(), CFG.get("freeze_grace_days", 3))
             since = open_[0].start if open_ else today() - timedelta(days=7)
     collector.collect_feed(conn, api, since, today() + timedelta(days=1))
-    collector.collect_spins(conn, api, TZ, since=since - timedelta(days=7))
+    # Spins: anything still unfetched in an open semester (finishes an interrupted backfill).
+    open_ = CAL.open_semesters(today(), CFG.get("freeze_grace_days", 3))
+    spins_since = min([s.start for s in open_] + [since - timedelta(days=7)])
+    collector.collect_spins(conn, api, TZ, since=spins_since)
     n = conn.execute("SELECT count(*) FROM spins").fetchone()[0]
     return f"{n} spins in database"
 
