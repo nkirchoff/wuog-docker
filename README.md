@@ -17,7 +17,7 @@ then freeze for good a few days after finals.
 ## Semester lifecycle
 
 1. **Open** (classes begin → finals end + `freeze_grace_days`): the collector runs hourly
-   and the Apple Music sync runs daily at `sync_at`. New tracks are appended in the order they first aired.
+   and the Apple Music sync runs every `sync_every_hours`. New tracks are appended in the order they first aired. Apple throttles catalog search after ~50 requests, so songs without an ISRC trickle in over a few runs.
 2. **Frozen**: one last sync after the grace period, then the semester's playlists are marked
    frozen and never touched again. The next semester starts new playlists on its first day.
 

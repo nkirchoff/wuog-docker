@@ -10,7 +10,7 @@ import sqlite3
 from collections import OrderedDict
 from datetime import date, datetime
 
-from applemusic import AppleMusic, _norm
+from applemusic import AppleMusic, SearchLimited, _norm
 
 log = logging.getLogger("wuog.sync")
 
@@ -87,9 +87,16 @@ def match_tracks(db, am, tracks, retry_days=30):
 
     failures = 0
     for k in [k for k in todo if k not in cached]:
+        if getattr(am, "search_limited", False):
+            break
         _, artist, song = tracks[k]
         try:
             cached[k] = am.search_song(artist, song)
+        except SearchLimited:
+            log.info("catalog search throttled; %d songs left for the next run",
+                     sum(1 for x in todo if x not in cached))
+            am.search_limited = True
+            break
         except RuntimeError as e:
             # Leave it uncached so the next run retries; stop early if Apple keeps refusing.
             log.warning("search failed for %s – %s: %s", artist, song, e)

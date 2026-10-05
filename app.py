@@ -144,7 +144,7 @@ def sync():
 
 def scheduler():
     schedule.every(CFG.get("collect_every_minutes", 60)).minutes.do(lambda: _job("collect", collect))
-    schedule.every().day.at(CFG.get("sync_at", "05:00")).do(lambda: _job("sync", sync))
+    schedule.every(CFG.get("sync_every_hours", 6)).hours.do(lambda: _job("sync", sync))
     _job("collect", collect)
     while True:
         schedule.run_pending()

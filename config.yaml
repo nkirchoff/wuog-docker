@@ -5,7 +5,7 @@ database_path: data/wuog.db
 # Spinitron's robots.txt asks for >= 10 s between requests. Don't lower this.
 request_interval_s: 10
 collect_every_minutes: 60
-sync_at: "05:00"            # daily Apple Music sync, local time
+sync_every_hours: 6        # Apple Music sync; each run also works through ~50 catalog searches (Apple's burst limit)
 
 # Apple Music playlists stay open this many days after a semester's last day so
 # late-logged shows still land, then they freeze and are never touched again.

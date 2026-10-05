@@ -24,6 +24,10 @@ class AuthError(Exception):
     pass
 
 
+class SearchLimited(Exception):
+    """Apple is throttling catalog search; try again next run."""
+
+
 def mint_developer_token(team_id, key_id, p8_path, days=180):
     import jwt  # PyJWT, only needed for this path
 
@@ -47,7 +51,7 @@ class AppleMusic:
             "Origin": "https://music.apple.com",
         })
 
-    def _req(self, method, path, **kw):
+    def _req(self, method, path, give_up_on_429=False, **kw):
         status = None
         for attempt in range(6):
             try:
@@ -57,6 +61,8 @@ class AppleMusic:
                 time.sleep(10 * (attempt + 1))
                 continue
             status = r.status_code
+            if r.status_code == 429 and give_up_on_429:
+                raise SearchLimited()
             if r.status_code == 429 or r.status_code >= 500:
                 wait = int(r.headers.get("Retry-After") or 0) or min(120, 10 * 2 ** attempt)
                 log.warning("Apple Music %s %s -> %s; waiting %ss", method, path, r.status_code, wait)
@@ -90,7 +96,9 @@ class AppleMusic:
         if wait > 0:
             time.sleep(wait)
         self._last_search = time.monotonic()
-        res = self._req("GET", f"/v1/catalog/{self.storefront}/search",
+        # Search throttling outlasts any sensible backoff (~50 searches, then minutes of 429s),
+        # so stop at the first one and let the next run continue.
+        res = self._req("GET", f"/v1/catalog/{self.storefront}/search", give_up_on_429=True,
                         params={"term": term, "types": "songs", "limit": 10})
         best, best_score = None, 0.0
         for song in res.get("results", {}).get("songs", {}).get("data", []):
