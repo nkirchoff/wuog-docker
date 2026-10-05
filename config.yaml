@@ -14,6 +14,7 @@ freeze_grace_days: 3
 sync_from: 2026-08-17
 max_tracks_per_playlist: 10000
 storefront: us
+folder: WUOG               # Apple Music library folder new playlists go into (created if missing)
 
 # UGA registrar dates: classes begin -> final exams end. Years not listed fall
 # back to Spring Jan 8–May 8 / Fall Aug 15–Dec 12.

@@ -85,15 +85,24 @@ def match_tracks(db, am, tracks, retry_days=30):
                 db.execute("INSERT OR REPLACE INTO am_matches VALUES (?,?,?,?)", (k, cached[k], "isrc", now.isoformat()))
         db.commit()
 
-    for n, k in enumerate(k for k in todo if k not in cached):
+    failures = 0
+    for k in [k for k in todo if k not in cached]:
         _, artist, song = tracks[k]
-        cached[k] = am.search_song(artist, song)
+        try:
+            cached[k] = am.search_song(artist, song)
+        except RuntimeError as e:
+            # Leave it uncached so the next run retries; stop early if Apple keeps refusing.
+            log.warning("search failed for %s – %s: %s", artist, song, e)
+            failures += 1
+            if failures >= 3:
+                log.warning("too many search failures; finishing this run with what matched")
+                break
+            continue
+        failures = 0
         db.execute("INSERT OR REPLACE INTO am_matches VALUES (?,?,?,?)",
                    (k, cached[k], "search" if cached[k] else "none", now.isoformat()))
-        if n % 50 == 0:
-            db.commit()
-    db.commit()
-    return cached
+        db.commit()
+    return {k: v for k, v in cached.items()}
 
 
 def sync_semester(db, am, semester, views, cfg, frozen_after=False):
@@ -121,7 +130,13 @@ def sync_semester(db, am, semester, views, cfg, frozen_after=False):
                 fmt = {"semester": semester.name,
                        "start": semester.start.strftime("%b %-d"), "end": semester.end.strftime("%b %-d, %Y")}
                 name = view["name"].format(**fmt) + (f" (Vol. {vol})" if vol > 1 else "")
-                pid = am.create_playlist(name, view.get("description", "").format(**fmt))
+                folder = None
+                if cfg.get("folder"):
+                    try:
+                        folder = am.ensure_folder(cfg["folder"])
+                    except Exception as e:   # a folder is nice to have; never block the playlist on it
+                        log.warning("couldn't use folder %r: %s", cfg["folder"], e)
+                pid = am.create_playlist(name, view.get("description", "").format(**fmt), folder_id=folder)
                 db.execute("INSERT INTO am_playlists VALUES (?,?,?,?,?,?,NULL)",
                            (view["key"], semester.name, vol, pid, name, datetime.now().isoformat()))
                 vols.append((vol, pid))

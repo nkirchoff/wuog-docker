@@ -7,6 +7,7 @@ import logging
 import os
 import threading
 import time
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -36,10 +37,16 @@ STATUS = {"collect": {}, "sync": {}}
 app = Flask(__name__)
 
 
+@contextmanager
 def db():
+    """A connection that is always closed, and rolled back if the caller fails mid-write."""
     conn = collector.connect(CFG["database_path"])
     conn.executescript(SYNC_SCHEMA)
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.rollback()
+        conn.close()
 
 
 def today():
@@ -105,7 +112,11 @@ def _job(name, fn):
 
 
 def collect(since=None):
-    conn = db()
+    with db() as conn:
+        return _collect(conn, since)
+
+
+def _collect(conn, since):
     api = collector.Spinitron(CFG["station"], CFG.get("request_interval_s", 10))
     if since is None:
         newest = conn.execute("SELECT max(start) FROM playlists").fetchone()[0]
@@ -127,7 +138,8 @@ def sync():
     am = apple_music()
     if not am:
         return "Apple Music not configured"
-    return run_sync(db(), am, CAL, CFG, today())
+    with db() as conn:
+        return run_sync(conn, am, CAL, CFG, today())
 
 
 def scheduler():
@@ -166,12 +178,30 @@ def semester_rows(conn):
 
 @app.route("/")
 def index():
-    conn = db()
     auth = load_auth() or {}
     expires = token_expiry(developer_token(auth) or "") if auth else None
-    return render_template("index.html", semesters=semester_rows(conn), views=CFG["views"],
+    with db() as conn:
+        semesters = semester_rows(conn)
+    return render_template("index.html", semesters=semesters, views=CFG["views"],
                            status=STATUS, am_ready=apple_music() is not None, auth=auth,
                            token_expires=expires, today=today())
+
+
+@app.route("/health")
+def health():
+    """200 "OK" while playlists can update; 503 with the reason otherwise (for Uptime Kuma)."""
+    auth = load_auth() or {}
+    problems = []
+    if not apple_music():
+        problems.append("Apple Music tokens missing")
+    expires = token_expiry(developer_token(auth) or "") if auth else None
+    if expires and expires <= today():
+        problems.append(f"developer token expired {expires}")
+    if STATUS["sync"].get("state") in ("auth", "error"):
+        problems.append(f"last sync failed: {STATUS['sync'].get('error')}")
+    if problems:
+        return Response("; ".join(problems), status=503, mimetype="text/plain")
+    return Response("OK", mimetype="text/plain")
 
 
 @app.route("/api/status")
@@ -244,14 +274,17 @@ def export_csv(semester, view):
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Artist", "Song", "ISRC"])
-    for isrc, artist, song in view_tracks(db(), sem, v).values():
-        w.writerow([artist, song, isrc or ""])
+    with db() as conn:
+        for isrc, artist, song in view_tracks(conn, sem, v).values():
+            w.writerow([artist, song, isrc or ""])
     return Response(buf.getvalue(), mimetype="text/csv",
                     headers={"Content-Disposition": f'attachment; filename="WUOG {semester} {view}.csv"'})
 
 
 if __name__ == "__main__":
     os.makedirs("data", exist_ok=True)
+    with db() as conn:
+        collector.migrate(conn)
     threading.Thread(target=scheduler, daemon=True).start()
     from waitress import serve
     log.info("dashboard on :1785")

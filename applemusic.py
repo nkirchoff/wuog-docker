@@ -35,8 +35,11 @@ def mint_developer_token(team_id, key_id, p8_path, days=180):
 
 
 class AppleMusic:
+    SEARCH_INTERVAL = 1.0   # Apple rate-limits bursts of catalog searches
+
     def __init__(self, developer_token, user_token, storefront="us"):
         self.storefront = storefront
+        self._last_search = 0.0
         self.s = requests.Session()
         self.s.headers.update({
             "Authorization": f"Bearer {developer_token}",
@@ -45,16 +48,25 @@ class AppleMusic:
         })
 
     def _req(self, method, path, **kw):
-        for attempt in range(5):
-            r = self.s.request(method, API + path, timeout=30, **kw)
+        status = None
+        for attempt in range(6):
+            try:
+                r = self.s.request(method, API + path, timeout=30, **kw)
+            except requests.RequestException as e:
+                status = str(e)
+                time.sleep(10 * (attempt + 1))
+                continue
+            status = r.status_code
             if r.status_code == 429 or r.status_code >= 500:
-                time.sleep(5 * (attempt + 1))
+                wait = int(r.headers.get("Retry-After") or 0) or min(120, 10 * 2 ** attempt)
+                log.warning("Apple Music %s %s -> %s; waiting %ss", method, path, r.status_code, wait)
+                time.sleep(wait)
                 continue
             if r.status_code in (401, 403):
                 raise AuthError(f"{r.status_code} from Apple Music — token expired or invalid")
             r.raise_for_status()
             return r.json() if r.content else {}
-        raise RuntimeError(f"Apple Music {method} {path} kept failing")
+        raise RuntimeError(f"Apple Music {method} {path} kept failing ({status})")
 
     def check(self):
         self._req("GET", "/v1/me/storefront")
@@ -74,6 +86,10 @@ class AppleMusic:
     def search_song(self, artist, title):
         """Best catalog match for artist/title, or None if nothing is a confident match."""
         term = f"{artist} {_strip(title)}"[:200]
+        wait = self._last_search + self.SEARCH_INTERVAL - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        self._last_search = time.monotonic()
         res = self._req("GET", f"/v1/catalog/{self.storefront}/search",
                         params={"term": term, "types": "songs", "limit": 10})
         best, best_score = None, 0.0
@@ -92,6 +108,19 @@ class AppleMusic:
             out += res.get("data", [])
             path = res.get("next")
         return out
+
+    def ensure_folder(self, name):
+        """Id of the top-level library folder called `name`, creating it if needed."""
+        res = self._req("GET", "/v1/me/library/playlist-folders/p.playlistsroot/children?limit=100")
+        while True:
+            for item in res.get("data", []):
+                if item["type"] == "library-playlist-folders" and item["attributes"].get("name") == name:
+                    return item["id"]
+            if not res.get("next"):
+                break
+            res = self._req("GET", res["next"])
+        return self._req("POST", "/v1/me/library/playlist-folders",
+                         json={"attributes": {"name": name}})["data"][0]["id"]
 
     def create_playlist(self, name, description, song_ids=(), folder_id=None):
         body = {"attributes": {"name": name, "description": description}}

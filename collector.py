@@ -45,15 +45,19 @@ CREATE INDEX IF NOT EXISTS playlists_start ON playlists(start);
 
 
 def connect(path):
-    db = sqlite3.connect(path)
+    db = sqlite3.connect(path, timeout=30)
     db.row_factory = sqlite3.Row
+    db.execute("PRAGMA journal_mode=WAL")      # readers never wait on a long sync
     db.executescript(SCHEMA)
+    return db
+
+
+def migrate(db):
     # Rows stored before automation got its own category (see is_automation).
     db.execute("""UPDATE playlists SET category='Automation' WHERE coalesce(category,'') != 'Automation'
                   AND (upper(trim(title))='AUTOMATION' OR title LIKE 'WUOG 90.5FM%'
                        OR trim(dj) IN ('Automation','DJ Automatic DJ','Automatic DJ'))""")
     db.commit()
-    return db
 
 
 class Spinitron:
